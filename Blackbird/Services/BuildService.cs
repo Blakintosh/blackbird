@@ -25,11 +25,65 @@ public partial class BuildService : IBuildService
         IProgress<string> progress,
         CancellationToken ct)
     {
-        bool allSucceeded = true;
-
-        foreach (var command in commands)
+        // Link stamps are written while the next step runs; the build isn't over until they're on disk.
+        var stampWrites = new List<Task>();
+        try
         {
+            return await RunCommandsAsync(commands, ignoreErrors, progress, stampWrites, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            try { await Task.WhenAll(stampWrites).ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+        }
+    }
+
+    private async Task<bool> RunCommandsAsync(
+        List<BuildCommand> commands,
+        bool ignoreErrors,
+        IProgress<string> progress,
+        List<Task> stampWrites,
+        CancellationToken ct)
+    {
+        bool allSucceeded = true;
+        var queue = new List<BuildCommand>(commands);
+
+        for (var index = 0; index < queue.Count; index++)
+        {
+            var command = queue[index];
             ct.ThrowIfCancellationRequested();
+
+            if (command.GdtDbGate is { } gate && await Task.Run(() => gate.IsUpToDate(ct), ct).ConfigureAwait(false))
+            {
+                progress.Report("\n[launcher] No GDT changes since the last gdtdb update, so it was skipped.\n");
+                continue;
+            }
+
+            if (command.LinkStamps.Count > 0)
+            {
+                // Skipped only when every zone the step writes is current; the first stamp holds the output.
+                var stamps = command.LinkStamps;
+                var last = await Task.Run(() => stamps[0].TryGetUpToDate(ct), ct).ConfigureAwait(false);
+                for (var s = 1; last is not null && s < stamps.Count; s++)
+                {
+                    var stamp = stamps[s];
+                    if (await Task.Run(() => stamp.TryGetUpToDate(ct), ct).ConfigureAwait(false) is null)
+                        last = null;
+                }
+                if (last is { } up)
+                {
+                    progress.Report($"\n[launcher] Nothing this link reads has changed since it last ran, so it was skipped. Its last output:\n\n{up.Output}");
+                    if (up.ExitCode != 0)
+                    {
+                        allSucceeded = false;
+                        if (!ignoreErrors)
+                            return false;
+                    }
+                    continue;
+                }
+                foreach (var stamp in stamps)
+                    await Task.Run(stamp.BeginLink, ct).ConfigureAwait(false);
+            }
 
             progress.Report($"\n{command}\n");
 
@@ -45,6 +99,9 @@ public partial class BuildService : IBuildService
 
             foreach (var arg in command.Arguments)
                 psi.ArgumentList.Add(arg);
+            if (command.Environment is { } environment)
+                foreach (var (name, value) in environment)
+                    psi.Environment[name] = value;
 
             using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
             var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -52,6 +109,8 @@ public partial class BuildService : IBuildService
             var outputBuffer = new StringBuilder();
             var outputLock = new object();
             var tail = new LineTail();
+            // The whole output of a stamped link is kept, to show again when the link is skipped next time.
+            var captured = command.LinkStamps.Count == 0 ? null : new StringBuilder();
             using var outputFlushCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var outputFlushTask = FlushOutputPeriodicallyAsync(
                 outputBuffer,
@@ -66,7 +125,7 @@ public partial class BuildService : IBuildService
                 if (e.Data is null)
                     stdoutClosed.TrySetResult();
                 else
-                    AppendOutputLine(outputBuffer, outputLock, e.Data, tail);
+                    AppendOutputLine(outputBuffer, outputLock, e.Data, tail, captured);
             };
 
             process.ErrorDataReceived += (_, e) =>
@@ -74,7 +133,7 @@ public partial class BuildService : IBuildService
                 if (e.Data is null)
                     stderrClosed.TrySetResult();
                 else
-                    AppendOutputLine(outputBuffer, outputLock, e.Data, tail);
+                    AppendOutputLine(outputBuffer, outputLock, e.Data, tail, captured);
             };
 
             try
@@ -82,6 +141,8 @@ public partial class BuildService : IBuildService
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
+                if (command.PatchUmbraWait)
+                    _ = LinkerUmbraPatch.ApplyAsync(process, ct);
 
                 using var registration = ct.Register(() =>
                 {
@@ -111,6 +172,39 @@ public partial class BuildService : IBuildService
             }
 
             ct.ThrowIfCancellationRequested();
+
+            // A link that ran to the end ("done:") can vouch for its outputs; one that crashed or was stopped can't.
+            // A step that fell back to the stock linker leaves its stamps unwritten (the fallback writes its own).
+            if (captured is not null && !(command.Fallback is not null && BbLinker.MeansUseStock(process.ExitCode)))
+            {
+                string output;
+                lock (outputLock)
+                    output = captured.ToString();
+                var exitCode = process.ExitCode;
+                if (output.Contains("done: ", StringComparison.Ordinal))
+                    for (var s = 0; s < command.LinkStamps.Count; s++)
+                    {
+                        var ranStamp = command.LinkStamps[s];
+                        var kept = s == 0 ? output : "";
+                        stampWrites.Add(Task.Run(() => ranStamp.RecordLink(exitCode, kept, ct), ct));
+                    }
+            }
+
+            // gdtdb exits 1 when it reported errors (duplicate assets, say); those builds keep running it.
+            if (command.GdtDbGate is { } ranGate)
+            {
+                if (process.ExitCode == 0)
+                    ranGate.RecordCleanUpdate();
+                else
+                    ranGate.Forget();
+            }
+
+            if (command.Fallback is { } fallback && BbLinker.MeansUseStock(process.ExitCode))
+            {
+                progress.Report($"\n[launcher] bb-linker can't link this yet (exit 0x{process.ExitCode:X8}), so the stock linker is linking it.\n");
+                queue.Insert(index + 1, fallback);
+                continue;
+            }
 
             // Non-zero with the linker's closing "done:" line means it ran to the end and only reported errors;
             // those are counted from the log, so the build lands as "completed with errors", not "failed".
@@ -144,7 +238,7 @@ public partial class BuildService : IBuildService
         public string? Value;
     }
 
-    private static void AppendOutputLine(StringBuilder outputBuffer, object outputLock, string line, LineTail? tail = null)
+    private static void AppendOutputLine(StringBuilder outputBuffer, object outputLock, string line, LineTail? tail = null, StringBuilder? captured = null)
     {
         lock (outputLock)
         {
