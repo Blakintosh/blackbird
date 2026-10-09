@@ -1,4 +1,8 @@
-# Blackbird
+<p align="center">
+  <img src="docs/assets/icon.png" alt="" width="96" height="96">
+</p>
+
+<h1 align="center">Blackbird</h1>
 
 Blackbird replaces the Black Ops III Mod Tools Launcher. It builds, runs and publishes your maps and mods the
 same way Treyarch's launcher does, and it is quicker to use: one window, a keyboard shortcut for everything you
@@ -6,6 +10,17 @@ do daily, and nothing you have to configure before it works.
 
 It installs as `modlauncher.exe` in your `bin` folder, so launching the Mod Tools from Steam, or from any
 shortcut you already have, opens Blackbird.
+
+<p align="center">
+  <img src="docs/screenshots/build-dark.png" alt="Blackbird building a map, with its log, error and warning counts" width="860">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/build-light.png" alt="The same build in the light theme" width="425">
+  <img src="docs/screenshots/command-palette.png" alt="The command palette, opened with Ctrl+K" width="425">
+</p>
+
+<p align="center"><sub>The screenshots show a made-up project, <i>Castle Redux</i>, in the dark and light themes, and the Ctrl+K command palette.</sub></p>
 
 ## What it does
 
@@ -94,3 +109,11 @@ dotnet run -c Release --project Blackbird.Shots
 ```
 
 Screenshots land in `Blackbird.Shots/shots/`.
+
+## Licence
+
+Blackbird is released under the [MIT licence](LICENSE).
+
+It bundles files that are not covered by it: `steam_api64.dll` is Valve's Steamworks library, used under
+Valve's terms, and the Geist and IBM Plex Mono fonts are under the SIL Open Font License (the licence texts sit
+beside them in `Blackbird/Assets/Fonts`).
