@@ -1,0 +1,135 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:models="using:Blackbird.Models"
+        xmlns:views="using:Blackbird.Views"
+        x:Class="Blackbird.Views.DvarsDialog"
+        x:DataType="vm:DvarsDialogViewModel"
+        WindowStartupLocation="CenterOwner"
+        Classes="dialog tool"
+        Title="Launch config"
+        Width="680" Height="600"
+        MinWidth="560" MinHeight="480"
+        CanResize="True">
+
+    <views:DialogShell Title="Launch config" Subtitle="{Binding ScopeLabel}">
+        <views:DialogShell.Status>
+            <Button Content="{Binding ResetLabel}"
+                    Click="OnResetClick"
+                    Theme="{StaticResource SubtleButton}"/>
+        </views:DialogShell.Status>
+        <views:DialogShell.Footer>
+            <StackPanel Classes="dialog-buttons">
+                <Button Content="Save" IsDefault="True" Click="OnSaveClick"
+                        Theme="{StaticResource AccentButton}"/>
+                <Button Content="Cancel" IsCancel="True" Click="OnCancelClick"
+                        Theme="{StaticResource SubtleButton}"/>
+            </StackPanel>
+        </views:DialogShell.Footer>
+
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Classes="field" Margin="0,0,0,16"
+                        IsVisible="{Binding IsProjectScoped}">
+                <TextBlock Classes="label" Text="Run options"/>
+                <TextBox Name="RunOptionsBox"
+                         Text="{Binding RunOptions}"
+                         FontFamily="{StaticResource MonoFont}"
+                         Watermark="+set r_fullscreen 0 +set name &quot;value with spaces&quot;"/>
+            </StackPanel>
+
+            <StackPanel DockPanel.Dock="Top" Classes="field" Margin="0,0,0,8">
+                <TextBlock Classes="label" Text="Dvars"/>
+                <Border Classes="search-frame">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <TextBlock Text="&#xE721;"
+                                   FontFamily="{StaticResource IconFont}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource ForegroundDimmed}"
+                                   VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1"
+                                 Name="SearchBox"
+                                 Classes="bare"
+                                 MinHeight="24"
+                                 Text="{Binding DvarSearchText}"
+                                 Watermark="{Binding SearchWatermark}"
+                                 AutomationProperties.Name="Search dvars"
+                                 KeyDown="OnSearchKeyDown"/>
+                        <Button Grid.Column="2"
+                                Theme="{StaticResource ToolbarButton}"
+                                IsVisible="{Binding DvarSearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                MinHeight="24" MinWidth="24" Padding="0"
+                                Click="OnClearSearchClick"
+                                AutomationProperties.Name="Clear the search"
+                                ToolTip.Tip="Clear (Esc)">
+                            <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="10"/>
+                        </Button>
+                    </Grid>
+                </Border>
+            </StackPanel>
+
+            <Border Classes="card" Padding="0" ClipToBounds="True">
+                <Panel>
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding Dvars}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="models:Dvar">
+                                    <Border Classes="row">
+                                        <Grid ColumnDefinitions="*,140,28" ColumnSpacing="12">
+                                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontFamily="{StaticResource MonoFont}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Classes="hint"
+                                                           Text="{Binding Description}"
+                                                           TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip.Tip="{Binding Description}"
+                                                           IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                            </StackPanel>
+
+                                            <CheckBox Grid.Column="1"
+                                                      IsVisible="{Binding IsBool}"
+                                                      IsChecked="{Binding BoolValue}"
+                                                      HorizontalAlignment="Right"
+                                                      MinWidth="0"
+                                                      AutomationProperties.Name="{Binding Name}"/>
+                                            <TextBox Grid.Column="1"
+                                                     IsVisible="{Binding !IsBool}"
+                                                     Text="{Binding ValueText, UpdateSourceTrigger=LostFocus}"
+                                                     Watermark="{Binding ValueHint}"
+                                                     FontFamily="{StaticResource MonoFont}"
+                                                     VerticalAlignment="Center"
+                                                     AutomationProperties.Name="{Binding Name}"/>
+
+                                            <Button Grid.Column="2"
+                                                    Theme="{StaticResource ToolbarButton}"
+                                                    IsVisible="{Binding IsSet}"
+                                                    Width="28" Height="28" Padding="0"
+                                                    VerticalAlignment="Center"
+                                                    Click="OnRemoveClick"
+                                                    AutomationProperties.Name="{Binding Name, StringFormat='Remove {0}'}"
+                                                    ToolTip.Tip="{Binding Name, StringFormat='Remove {0}'}">
+                                                <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="10"/>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <TextBlock Classes="hint"
+                               Text="{Binding EmptyMessage}"
+                               IsVisible="{Binding IsEmpty}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Panel>
+            </Border>
+        </DockPanel>
+    </views:DialogShell>
+</Window>

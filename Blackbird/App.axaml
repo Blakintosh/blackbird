@@ -1,0 +1,21 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Blackbird.App"
+             RequestedThemeVariant="Default">
+
+    <!-- Default follows the Windows light/dark setting, live: Graphite when dark, Light when light.
+         File > Theme can pin Graphite, Slate or Light instead (Services/AppTheme.cs). -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://modlauncher/Styles/Palette.axaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml"/>
+        <StyleInclude Source="/Styles/Theme.axaml"/>
+    </Application.Styles>
+</Application>

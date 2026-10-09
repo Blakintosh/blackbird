@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:u="using:Gscode.Updates"
+             x:Class="Blackbird.Views.UpdatePanel"
+             x:DataType="u:Updater"
+             Width="320">
+    <!-- The title bar's update flyout: an update downloading, waiting, installed, or failed. Apex's
+         (Views/UpdatePanel.axaml there) is its sibling: same states, same copy (it comes from the shared Updater), same
+         order; only the styles are each app's own. Checking and its outcome are Help > Updates', not this. -->
+    <StackPanel Margin="4" Spacing="12">
+        <DockPanel>
+            <TextBlock DockPanel.Dock="Left" Classes="update-state warning" IsVisible="{Binding IsFailed}"/>
+            <StackPanel Spacing="2">
+                <TextBlock Name="UpdateTitle" Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding Detail}" Classes="hint" IsVisible="{Binding HasDetail}"/>
+            </StackPanel>
+        </DockPanel>
+
+        <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress}"
+                     IsIndeterminate="{Binding !IsProgressKnown}" IsVisible="{Binding IsDownloading}"/>
+
+        <!-- The release notes' first lines, and the link to all of them. -->
+        <Border Classes="update-notes" IsVisible="{Binding HasReleaseLink}">
+            <StackPanel Spacing="2">
+                <TextBlock Text="{Binding Notes}" Classes="hint" MaxLines="4" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding HasNotes}"/>
+                <Button Theme="{StaticResource ToolbarButton}" Classes="link" Content="Release notes"
+                        HorizontalAlignment="Left" Margin="-6,0,0,-4"
+                        Command="{Binding OpenReleaseCommand}"/>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="{Binding BlockedReason}" Classes="hint" IsVisible="{Binding IsInstallBlocked}"/>
+
+        <DockPanel IsVisible="{Binding HasActions}">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                <Button Theme="{StaticResource SubtleButton}" Content="Retry"
+                        Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}"/>
+                <Button Theme="{StaticResource SubtleButton}" Content="Install on close"
+                        Command="{Binding InstallOnCloseCommand}" IsVisible="{Binding IsReady}"
+                        ToolTip.Tip="{Binding BlockedReason}" ToolTip.ShowOnDisabled="True"/>
+                <Button Theme="{StaticResource SubtleButton}" Content="Don't install on close"
+                        Command="{Binding CancelInstallOnCloseCommand}" IsVisible="{Binding IsInstallOnClose}"/>
+                <Button Theme="{StaticResource AccentButton}" Content="Install now"
+                        Command="{Binding InstallNowCommand}" IsVisible="{Binding IsReady}"
+                        ToolTip.Tip="{Binding BlockedReason}" ToolTip.ShowOnDisabled="True"/>
+                <Button Theme="{StaticResource AccentButton}" Content="Install now"
+                        Command="{Binding InstallNowCommand}" IsVisible="{Binding IsInstallOnClose}"/>
+                <Button Theme="{StaticResource AccentButton}" Content="Restart now"
+                        Command="{Binding RestartCommand}" IsVisible="{Binding IsInstalled}"/>
+            </StackPanel>
+            <Button Theme="{StaticResource ToolbarButton}" Classes="link" Content="{Binding InstallerLinkText}"
+                    HorizontalAlignment="Left" Margin="-6,0,0,0"
+                    Command="{Binding OpenInstallerCommand}" IsVisible="{Binding HasInstallerLink}"/>
+        </DockPanel>
+    </StackPanel>
+</UserControl>

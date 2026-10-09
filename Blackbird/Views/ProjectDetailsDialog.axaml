@@ -1,0 +1,122 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:views="using:Blackbird.Views"
+        x:Class="Blackbird.Views.ProjectDetailsDialog"
+        x:DataType="vm:ProjectDetailsDialogViewModel"
+        WindowStartupLocation="CenterOwner"
+        Classes="dialog"
+        Title="Project info"
+        Width="560" SizeToContent="Height"
+        CanResize="False">
+
+    <views:DialogShell Title="{Binding HeaderName}" Subtitle="{Binding Subtitle}">
+        <views:DialogShell.Status>
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Button Content="Restore defaults"
+                        Click="OnRestoreDefaultsClick"
+                        IsEnabled="{Binding IsIdle}"
+                        ToolTip.Tip="Display name and category go back to the project's own. Notes stay."
+                        Theme="{StaticResource SubtleButton}"/>
+                <Panel Grid.Column="1">
+                    <TextBlock Classes="status" Text="{Binding StatusMessage}"
+                               IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNullOrEmpty}}"/>
+                    <TextBlock Classes="error" Text="{Binding ErrorMessage}" ToolTip.Tip="{Binding ErrorDetail}"/>
+                </Panel>
+            </Grid>
+        </views:DialogShell.Status>
+        <views:DialogShell.Footer>
+            <StackPanel Classes="dialog-buttons">
+                <Button IsDefault="True" Click="OnSaveClick" AutomationProperties.Name="Save"
+                        Theme="{StaticResource AccentButton}">
+                    <Panel Classes="busy-label" Classes.busy="{Binding ShowBusy}">
+                        <TextBlock Text="Save" HorizontalAlignment="Center"/>
+                        <ProgressBar/>
+                    </Panel>
+                </Button>
+                <Button Content="Cancel" IsCancel="True" IsEnabled="{Binding IsIdle}"
+                        Click="OnCancelClick"
+                        Theme="{StaticResource SubtleButton}"/>
+            </StackPanel>
+        </views:DialogShell.Footer>
+
+        <StackPanel Classes="form" IsEnabled="{Binding IsIdle}">
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <StackPanel Classes="field">
+                    <TextBlock Classes="label" Text="Display name"/>
+                    <TextBox Name="DisplayNameBox"
+                             Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Watermark="{Binding ProjectName}"
+                             MaxLength="80"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Classes="field">
+                    <TextBlock Classes="label" Text="Category"/>
+                    <AutoCompleteBox ItemsSource="{Binding CategorySuggestions}"
+                                     Text="{Binding Category, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Watermark="{Binding DefaultCategory}"
+                                     MaxLength="40"
+                                     MinimumPrefixLength="0"/>
+                </StackPanel>
+            </Grid>
+
+            <StackPanel Classes="field">
+                <TextBlock Classes="label" Text="Folder"/>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding FolderPath}"
+                               Foreground="{DynamicResource ForegroundDimmed}"
+                               VerticalAlignment="Center"
+                               TextTrimming="PathSegmentEllipsis"
+                               ToolTip.Tip="{Binding FolderPath}"/>
+                    <Button Grid.Column="1"
+                            Content="Rename folder…"
+                            Click="OnRenameFolderClick"
+                            IsEnabled="{Binding CanRenameFolder}"
+                            ToolTip.Tip="{Binding RenameBlockedReason}"
+                            ToolTip.ShowOnDisabled="True"
+                            Theme="{StaticResource SubtleButton}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Classes="label" Text="Workshop"/>
+                <TextBlock Classes="hint" Text="{Binding WorkshopSummary}"
+                           IsVisible="{Binding HasWorkshopSummary}"/>
+                <Border Classes="card" Padding="0" IsVisible="{Binding HasWorkshopVersions}">
+                    <ItemsControl ItemsSource="{Binding WorkshopVersions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WorkshopVersionRow">
+                                <Border Classes="version-row" Padding="12,0" MinHeight="36">
+                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                                        <TextBlock Text="{Binding Name}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <Border Grid.Column="1" Classes="type-badge" IsVisible="{Binding IsActive}"
+                                                ToolTip.Tip="Publish uses this version">
+                                            <TextBlock Text="Active"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="3"
+                                                   Classes="hint"
+                                                   Text="{Binding IdText}"
+                                                   Classes.mono="{Binding IsPublished}"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Classes="label" Text="Notes"/>
+                <TextBox Text="{Binding Notes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         MaxLength="1000"
+                         Height="96"
+                         VerticalContentAlignment="Top"
+                         Watermark="Reminders, publish to-dos, where you left off"/>
+            </StackPanel>
+        </StackPanel>
+    </views:DialogShell>
+</Window>

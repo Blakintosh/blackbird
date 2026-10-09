@@ -1,0 +1,117 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:avaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             x:Class="Blackbird.Views.ColoredLogView">
+    <DockPanel Background="Transparent">
+        <!-- One header for the log: the error and warning counts are the filters, the
+             find field sits beside them, and copy/export/clear live in the log's menu. -->
+        <Border DockPanel.Dock="Top"
+                BorderBrush="{DynamicResource DividerStroke}"
+                BorderThickness="0,0,0,1"
+                Padding="12,8">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Button Name="ErrorsFilterButton"
+                            Classes="chip"
+                            Click="OnSeverityFilterClick"
+                            AutomationProperties.Name="Show only errors"
+                            ToolTip.Tip="Show only errors"
+                            ToolTip.ShowOnDisabled="True">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Ellipse Width="6" Height="6" Fill="{DynamicResource ErrorRed}" VerticalAlignment="Center"/>
+                            <TextBlock Name="ErrorsChipText" Text="0 errors" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Name="WarningsFilterButton"
+                            Classes="chip"
+                            Click="OnSeverityFilterClick"
+                            AutomationProperties.Name="Show only warnings"
+                            ToolTip.Tip="Show only warnings"
+                            ToolTip.ShowOnDisabled="True">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Ellipse Width="6" Height="6" Fill="{DynamicResource WarningYellow}" VerticalAlignment="Center"/>
+                            <TextBlock Name="WarningsChipText" Text="0 warnings" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <TextBlock Grid.Column="1"
+                           Name="FilterSummaryText"
+                           Foreground="{DynamicResource ForegroundTertiary}"
+                           FontSize="12"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           Margin="8,0"/>
+
+                <Border Grid.Column="2" Classes="search-frame" Width="260">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                        <TextBlock Text="&#xE721;"
+                                   FontFamily="{StaticResource IconFont}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource ForegroundDimmed}"
+                                   VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1"
+                                 Name="SearchBox"
+                                 Classes="bare"
+                                 MinHeight="24"
+                                 FontSize="13"
+                                 Watermark="Find in log (Ctrl+F)"
+                                 AutomationProperties.Name="Find in log"
+                                 TextChanged="OnSearchTextChanged"/>
+                        <Button Grid.Column="2"
+                                Name="ClearSearchButton"
+                                Theme="{StaticResource ToolbarButton}"
+                                IsVisible="False"
+                                MinHeight="24" MinWidth="24" Padding="0"
+                                Click="OnClearSearchClick"
+                                AutomationProperties.Name="Clear the search"
+                                ToolTip.Tip="Clear (Esc)">
+                            <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="10"
+                                       Foreground="{DynamicResource ForegroundDimmed}"/>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <Button Grid.Column="3"
+                        Theme="{StaticResource ToolbarButton}"
+                        MinHeight="28" MinWidth="28" Padding="6,0"
+                        AutomationProperties.Name="Log actions"
+                        ToolTip.Tip="Log actions">
+                    <TextBlock Text="&#xE712;" FontFamily="{StaticResource IconFont}" FontSize="14"/>
+                    <Button.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight" Opening="OnLogMenuOpening">
+                            <MenuItem Header="Copy log" Tag="CopyLog" Click="OnLogActionClick"/>
+                            <MenuItem Header="Copy errors" Tag="CopyErrors" Click="OnLogActionClick"/>
+                            <MenuItem Header="Copy warnings" Tag="CopyWarnings" Click="OnLogActionClick"/>
+                            <Separator/>
+                            <MenuItem Header="Export log…" Tag="ExportLog" Click="OnLogActionClick"/>
+                            <Separator/>
+                            <MenuItem Name="ClearLogMenuItem" Header="Clear log…" Tag="Clear" Click="OnLogActionClick"
+                                      ToolTip.ShowOnDisabled="True"/>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
+            </Grid>
+        </Border>
+
+        <avaloniaEdit:TextEditor Name="LogEditor"
+                                 Background="Transparent"
+                                 Foreground="{DynamicResource ForegroundDimmed}"
+                                 LineNumbersForeground="{DynamicResource ForegroundDisabled}"
+                                 FontFamily="{StaticResource MonoFont}"
+                                 FontSize="13"
+                                 IsReadOnly="True"
+                                 ShowLineNumbers="True"
+                                 WordWrap="True"
+                                 HorizontalScrollBarVisibility="Disabled"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Padding="12,8">
+            <avaloniaEdit:TextEditor.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Copy" Click="OnCopySelectionClick" InputGesture="Ctrl+C"/>
+                    <MenuItem Header="Select all" Click="OnSelectAllClick" InputGesture="Ctrl+A"/>
+                </ContextMenu>
+            </avaloniaEdit:TextEditor.ContextMenu>
+        </avaloniaEdit:TextEditor>
+    </DockPanel>
+</UserControl>

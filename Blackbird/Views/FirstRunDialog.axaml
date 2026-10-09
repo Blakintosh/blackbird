@@ -1,0 +1,102 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:views="using:Blackbird.Views"
+        x:Class="Blackbird.Views.FirstRunDialog"
+        x:DataType="vm:FirstRunViewModel"
+        WindowStartupLocation="CenterOwner"
+        Classes="dialog"
+        Title="Find your Black Ops III install"
+        Width="560" SizeToContent="Height"
+        CanResize="False">
+
+    <views:DialogShell Title="Find your Black Ops III install"
+                       Subtitle="Blackbird builds and launches your maps and mods with Treyarch's Mod Tools.">
+        <views:DialogShell.Status>
+            <Panel>
+                <StackPanel Orientation="Horizontal" Spacing="4"
+                            IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNullOrEmpty}}">
+                    <TextBlock Classes="status" Text="Mod Tools somewhere else?"/>
+                    <Button Theme="{StaticResource ToolbarButton}" Classes="link"
+                            Content="Open Setup Doctor…"
+                            VerticalAlignment="Center"
+                            IsEnabled="{Binding IsIdle}"
+                            Click="OnSetupDoctorClick"/>
+                </StackPanel>
+                <TextBlock Classes="error" Text="{Binding ErrorMessage}" ToolTip.Tip="{Binding ErrorDetail}"/>
+            </Panel>
+        </views:DialogShell.Status>
+        <views:DialogShell.Footer>
+            <StackPanel Classes="dialog-buttons">
+                <Button Name="ContinueButton"
+                        AutomationProperties.Name="Continue"
+                        IsDefault="True"
+                        IsEnabled="{Binding IsReady}"
+                        ToolTip.Tip="{Binding ContinueBlockedReason}"
+                        ToolTip.ShowOnDisabled="True"
+                        Click="OnContinueClick"
+                        Theme="{StaticResource AccentButton}">
+                    <Panel Classes="busy-label" Classes.busy="{Binding ShowBusy}">
+                        <TextBlock Text="Continue" HorizontalAlignment="Center"/>
+                        <ProgressBar/>
+                    </Panel>
+                </Button>
+                <Button Content="Cancel" IsCancel="True" Click="OnCancelClick"
+                        IsEnabled="{Binding IsIdle}"
+                        Theme="{StaticResource SubtleButton}"/>
+            </StackPanel>
+        </views:DialogShell.Footer>
+
+        <!-- Fixed height so the sheet doesn't jump when the search finishes. -->
+        <Border Classes="card" MinHeight="112" IsEnabled="{Binding IsIdle}">
+            <Panel>
+                <StackPanel Spacing="8" VerticalAlignment="Center"
+                            IsVisible="{Binding IsSearching}">
+                    <TextBlock Classes="status" Text="Looking for Black Ops III…"
+                               IsVisible="{Binding ShowSearching}"/>
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding ShowSearching}"/>
+                </StackPanel>
+
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16"
+                      IsVisible="{Binding !IsSearching}">
+                    <Panel VerticalAlignment="Top" Margin="0,2,0,0">
+                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="16"
+                                   Classes="row-icon-ok"
+                                   IsVisible="{Binding IsReady}"/>
+                        <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource IconFont}" FontSize="16"
+                                   Classes="row-icon-warning"
+                                   IsVisible="{Binding IsToolsMissing}"/>
+                        <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="16"
+                                   Classes="hint"
+                                   IsVisible="{Binding IsNotFound}"/>
+                    </Panel>
+
+                    <StackPanel Grid.Column="1" Spacing="8">
+                        <TextBlock Text="{Binding Headline}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12"
+                              IsVisible="{Binding HasFolder}">
+                            <TextBlock Classes="status"
+                                       Text="{Binding GamePath}"
+                                       TextWrapping="NoWrap"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"
+                                       ToolTip.Tip="{Binding GamePath}"/>
+                            <Button Grid.Column="1" Content="Change…" Click="OnChangeClick"
+                                    Theme="{StaticResource SubtleButton}"/>
+                        </Grid>
+                        <TextBlock Text="{Binding Detail}" Classes="hint"
+                                   IsVisible="{Binding Detail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0"
+                                    IsVisible="{Binding !IsReady}">
+                            <Button Name="ChooseFolderButton" Content="Choose folder…" Click="OnChangeClick"
+                                    IsVisible="{Binding IsNotFound}"
+                                    Theme="{StaticResource SubtleButton}"/>
+                            <Button Name="CheckAgainButton" Content="Check again" Click="OnRecheckClick"
+                                    Theme="{StaticResource SubtleButton}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Panel>
+        </Border>
+    </views:DialogShell>
+</Window>

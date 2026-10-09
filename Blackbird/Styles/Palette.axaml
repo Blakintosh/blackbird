@@ -1,0 +1,639 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:services="using:Blackbird.Services">
+
+    <!--
+        Blackbird's colours: three themes over one set of keys (Services/AppTheme.cs picks one;
+        the default follows Windows). Same roles and values as Apex's Tokens.axaml, so moving
+        between the two tools feels like changing tabs.
+
+          Graphite (Dark)  neutral greys, teal as the one accent.
+          Slate            the blue-black dark from the gscode family; inherits Dark.
+          Light (Light)    a white card on a pale window.
+
+        Two layers per theme:
+          1. Blackbird's own tokens (LayerFill, BorderSubtle, AccentBlue...). The names predate
+             these themes and are used all over the views, so they keep their names.
+          2. Overrides of FluentTheme's own keys (ButtonBackground, TextControl*, ComboBox*...),
+             so every state of every stock control draws from the same palette.
+
+        Layer 2 is the same text in all three dictionaries: a StaticResource alias resolves only
+        inside the dictionary it sits in, so each theme needs its own copy. Blackbird.Shots checks
+        that the three define the same keys.
+
+        Views use {DynamicResource} for every key here. A StaticResource keeps the theme that was
+        active when the view loaded.
+    -->
+
+    <!-- Fluent's accent ramp, re-tinted to teal so stock controls (check boxes, sliders, text
+         selection) match: Fluent fills with Light2 on dark and Dark1 on light. -->
+    <Color x:Key="SystemAccentColor">#22A794</Color>
+    <Color x:Key="SystemAccentColorDark1">#0B7D6F</Color>
+    <Color x:Key="SystemAccentColorDark2">#09695E</Color>
+    <Color x:Key="SystemAccentColorDark3">#07554C</Color>
+    <Color x:Key="SystemAccentColorLight1">#2FBFAC</Color>
+    <Color x:Key="SystemAccentColorLight2">#3ED1BD</Color>
+    <Color x:Key="SystemAccentColorLight3">#7BEFDD</Color>
+
+    <ResourceDictionary.ThemeDictionaries>
+        <!-- Graphite: neutral greys with no blue cast. What a dark Windows gets. -->
+        <ResourceDictionary x:Key="Dark">
+            <!-- ===== Surfaces ===== -->
+            <!-- Over Mica: the window colour at ~90%, so Mica only grains it and every theme reads as itself. -->
+            <SolidColorBrush x:Key="MicaTint" Color="#E6141414"/>
+            <!-- Solid base for dialogs, and the main window when Mica is unavailable. -->
+            <SolidColorBrush x:Key="SidebarBackground" Color="#141414"/>
+            <!-- The card: log, lists, panels, the dialog footer. -->
+            <SolidColorBrush x:Key="LayerFill" Color="#1C1C1C"/>
+            <!-- Flyouts, menus, tooltips and other overlays. -->
+            <SolidColorBrush x:Key="OverlayBackground" Color="#212121"/>
+            <SolidColorBrush x:Key="OverlayStroke" Color="#333333"/>
+            <!-- Chrome that sits directly on the window (title bar, command bar). -->
+            <SolidColorBrush x:Key="ChromeBackground" Color="#00141414"/>
+
+            <!-- ===== Strokes ===== -->
+            <SolidColorBrush x:Key="BorderSubtle" Color="#2E2E2E"/>
+            <SolidColorBrush x:Key="DividerStroke" Color="#262626"/>
+            <SolidColorBrush x:Key="CardStroke" Color="#272727"/>
+            <!-- Standard control edge: slightly lighter at the top, like WinUI's elevation border. -->
+            <LinearGradientBrush x:Key="ControlElevationBorder" StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Offset="0.33" Color="#303030"/>
+                <GradientStop Offset="1.0" Color="#303030"/>
+            </LinearGradientBrush>
+            <!-- Text inputs: one hairline all round; the accent all round on focus. -->
+            <SolidColorBrush x:Key="TextControlElevationBorder" Color="#2C2C2C"/>
+            <SolidColorBrush x:Key="TextControlFocusedBorder" Color="#3ED1BD"/>
+
+            <!-- ===== Text ===== -->
+            <SolidColorBrush x:Key="ForegroundPrimary" Color="#EBEBEB"/>
+            <SolidColorBrush x:Key="ForegroundDimmed" Color="#AAAAAA"/>
+            <SolidColorBrush x:Key="ForegroundTertiary" Color="#949494"/>
+            <SolidColorBrush x:Key="ForegroundDisabled" Color="#5E5E5E"/>
+
+            <!-- ===== Accent: teal (the Accent* names predate it). The fill carries dark text in every theme. ===== -->
+            <SolidColorBrush x:Key="AccentBlue" Color="#3ED1BD"/>
+            <SolidColorBrush x:Key="AccentHover" Color="#5EDCCA"/>
+            <SolidColorBrush x:Key="AccentPressed" Color="#33B9A7"/>
+            <SolidColorBrush x:Key="AccentDisabled" Color="#14FFFFFF"/>
+            <SolidColorBrush x:Key="TextOnAccent" Color="#05201C"/>
+            <SolidColorBrush x:Key="TextOnAccentPressed" Color="#B305201C"/>
+            <SolidColorBrush x:Key="AccentIndicator" Color="#3ED1BD"/>
+            <SolidColorBrush x:Key="AccentIndicatorStrong" Color="#7BEFDD"/>
+            <SolidColorBrush x:Key="AccentTint" Color="#263ED1BD"/>
+            <SolidColorBrush x:Key="AccentTintHover" Color="#363ED1BD"/>
+
+            <!-- ===== Status ===== -->
+            <SolidColorBrush x:Key="ErrorRed" Color="#FF5C7A"/>
+            <SolidColorBrush x:Key="WarningYellow" Color="#E8B04A"/>
+            <SolidColorBrush x:Key="SuccessGreen" Color="#5BC48C"/>
+            <!-- BO3's ^1-^7 colour codes in build output, tuned to read on this theme's card. -->
+            <SolidColorBrush x:Key="LogColor1" Color="#FF5C7A"/>
+            <SolidColorBrush x:Key="LogColor2" Color="#5BC48C"/>
+            <SolidColorBrush x:Key="LogColor3" Color="#E8B04A"/>
+            <SolidColorBrush x:Key="LogColor4" Color="#8CC6FF"/>
+            <SolidColorBrush x:Key="LogColor5" Color="#69D9C9"/>
+            <SolidColorBrush x:Key="LogColor6" Color="#B0B0B0"/>
+            <SolidColorBrush x:Key="LogColor7" Color="#C8C8C8"/>
+            <!-- Quiet washes behind inline banners (Publish checks, first run). -->
+            <SolidColorBrush x:Key="ErrorTint" Color="#1AFF5C7A"/>
+            <SolidColorBrush x:Key="ErrorTintStroke" Color="#4DFF5C7A"/>
+            <SolidColorBrush x:Key="WarningTint" Color="#14F5A524"/>
+            <SolidColorBrush x:Key="WarningTintStroke" Color="#40F5A524"/>
+            <SolidColorBrush x:Key="SuccessTint" Color="#144CC38A"/>
+            <SolidColorBrush x:Key="SuccessTintStroke" Color="#404CC38A"/>
+            <!-- Destructive buttons. -->
+            <SolidColorBrush x:Key="DangerFill" Color="#FF5C7A"/>
+            <SolidColorBrush x:Key="DangerFillHover" Color="#FF7A92"/>
+            <SolidColorBrush x:Key="DangerFillPressed" Color="#E84E6C"/>
+            <SolidColorBrush x:Key="TextOnDanger" Color="#1F0710"/>
+            <SolidColorBrush x:Key="TextOnDangerPressed" Color="#B31F0710"/>
+
+            <!-- ===== Fills ===== -->
+            <SolidColorBrush x:Key="ControlFill" Color="#00FFFFFF"/>
+            <SolidColorBrush x:Key="ControlFillHover" Color="#0DFFFFFF"/>
+            <SolidColorBrush x:Key="ControlFillPressed" Color="#06FFFFFF"/>
+            <SolidColorBrush x:Key="ControlFillDisabled" Color="#00FFFFFF"/>
+            <!-- "Subtle" fills: transparent at rest (toolbar buttons, list rows, menu items). -->
+            <SolidColorBrush x:Key="TreeItemHover" Color="#0AFFFFFF"/>
+            <SolidColorBrush x:Key="SubtlePressed" Color="#06FFFFFF"/>
+            <SolidColorBrush x:Key="TreeItemSelected" Color="#0FFFFFFF"/>
+            <!-- Fields: no fill of their own in the card (the hairline draws them); the project picker on the window is a filled field. -->
+            <SolidColorBrush x:Key="InputBackground" Color="#00000000"/>
+            <SolidColorBrush x:Key="InputBackgroundFocused" Color="#171717"/>
+            <SolidColorBrush x:Key="FieldFill" Color="#171717"/>
+            <!-- A build step that will run, and the key caps in lists and the palette. -->
+            <SolidColorBrush x:Key="StepFill" Color="#242424"/>
+            <SolidColorBrush x:Key="StepStroke" Color="#363636"/>
+            <SolidColorBrush x:Key="KeycapFill" Color="#242424"/>
+            <!-- Keyboard focus ring: accent outer, card-coloured inner. -->
+            <SolidColorBrush x:Key="SystemControlFocusVisualPrimaryBrush" Color="#3ED1BD"/>
+            <SolidColorBrush x:Key="SystemControlFocusVisualSecondaryBrush" Color="#1C1C1C"/>
+
+            <!-- ===== FluentTheme key overrides: the same in every theme (see the header). ===== -->
+            <!-- Standard button -->
+            <StaticResource x:Key="ButtonBackground" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="ControlFillPressed"/>
+            <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="ButtonForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="ButtonForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="ButtonBorderBrush" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ButtonBorderBrushDisabled" ResourceKey="CardStroke"/>
+
+            <!-- Accent button (also used by Button.accent) -->
+            <StaticResource x:Key="AccentButtonBackground" ResourceKey="AccentBlue"/>
+            <StaticResource x:Key="AccentButtonBackgroundPointerOver" ResourceKey="AccentHover"/>
+            <StaticResource x:Key="AccentButtonBackgroundPressed" ResourceKey="AccentPressed"/>
+            <StaticResource x:Key="AccentButtonBackgroundDisabled" ResourceKey="AccentDisabled"/>
+            <StaticResource x:Key="AccentButtonForeground" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="AccentButtonForegroundPointerOver" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="AccentButtonForegroundPressed" ResourceKey="TextOnAccentPressed"/>
+            <StaticResource x:Key="AccentButtonForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#1A000000"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrushPointerOver" Color="#1A000000"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrushPressed" Color="#00000000"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrushDisabled" Color="#00000000"/>
+
+            <!-- Toggle button: standard at rest, accent when checked -->
+            <StaticResource x:Key="ToggleButtonBackground" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="ControlFillPressed"/>
+            <StaticResource x:Key="ToggleButtonBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="ToggleButtonForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ToggleButtonForegroundPressed" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="ToggleButtonForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="ToggleButtonBorderBrush" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ToggleButtonBorderBrushPointerOver" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ToggleButtonBorderBrushPressed" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ToggleButtonBorderBrushDisabled" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="AccentBlue"/>
+            <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="AccentHover"/>
+            <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="AccentPressed"/>
+            <StaticResource x:Key="ToggleButtonBackgroundCheckedDisabled" ResourceKey="AccentDisabled"/>
+            <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="TextOnAccentPressed"/>
+            <StaticResource x:Key="ToggleButtonForegroundCheckedDisabled" ResourceKey="ForegroundDisabled"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#1A000000"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#1A000000"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#00000000"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedDisabled" Color="#00000000"/>
+
+            <!-- Text inputs -->
+            <StaticResource x:Key="TextControlBackground" ResourceKey="InputBackground"/>
+            <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="InputBackgroundFocused"/>
+            <StaticResource x:Key="TextControlBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="TextControlBorderBrush" ResourceKey="TextControlElevationBorder"/>
+            <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="TextControlElevationBorder"/>
+            <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="TextControlFocusedBorder"/>
+            <StaticResource x:Key="TextControlBorderBrushDisabled" ResourceKey="CardStroke"/>
+
+            <!-- ComboBox -->
+            <StaticResource x:Key="ComboBoxBackground" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="ControlFillPressed"/>
+            <StaticResource x:Key="ComboBoxBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="ComboBoxBackgroundUnfocused" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ComboBoxBorderBrushPointerOver" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ComboBoxBorderBrushPressed" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ComboBoxBorderBrushDisabled" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ComboBoxForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ComboBoxForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="ComboBoxDropDownBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="ComboBoxDropDownBorderBrush" ResourceKey="OverlayStroke"/>
+            <StaticResource x:Key="ComboBoxDropDownGlyphForeground" ResourceKey="ForegroundDimmed"/>
+            <SolidColorBrush x:Key="ComboBoxItemBackground" Color="#00FFFFFF"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundPointerOver" ResourceKey="TreeItemHover"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundPressed" ResourceKey="SubtlePressed"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundSelected" ResourceKey="TreeItemHover"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundSelectedPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundSelectedPressed" ResourceKey="SubtlePressed"/>
+            <StaticResource x:Key="ComboBoxItemForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ComboBoxItemForegroundSelected" ResourceKey="ForegroundPrimary"/>
+
+            <!-- Menus, flyouts, tooltips -->
+            <StaticResource x:Key="MenuFlyoutPresenterBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="MenuFlyoutPresenterBorderBrush" ResourceKey="OverlayStroke"/>
+            <SolidColorBrush x:Key="MenuFlyoutItemBackground" Color="#00FFFFFF"/>
+            <StaticResource x:Key="MenuFlyoutItemBackgroundPointerOver" ResourceKey="TreeItemHover"/>
+            <StaticResource x:Key="MenuFlyoutItemBackgroundPressed" ResourceKey="SubtlePressed"/>
+            <StaticResource x:Key="MenuFlyoutItemForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="MenuFlyoutItemForegroundPointerOver" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="MenuFlyoutItemForegroundPressed" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="MenuFlyoutItemForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="MenuFlyoutItemKeyboardAcceleratorTextForeground" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="MenuFlyoutItemKeyboardAcceleratorTextForegroundPointerOver" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="FlyoutPresenterBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="ToolTipBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="ToolTipBorderBrush" ResourceKey="OverlayStroke"/>
+            <StaticResource x:Key="ToolTipForeground" ResourceKey="ForegroundPrimary"/>
+        </ResourceDictionary>
+
+        <!-- Slate: Graphite's roles on the blue-black ramp. Inherits Dark, so stock Fluent keys fall back to their dark values. -->
+        <ResourceDictionary x:Key="{x:Static services:AppTheme.Slate}">
+            <!-- ===== Surfaces ===== -->
+            <!-- Over Mica: the window colour at ~90%, so Mica only grains it and every theme reads as itself. -->
+            <SolidColorBrush x:Key="MicaTint" Color="#EB0A0D12"/>
+            <!-- Solid base for dialogs, and the main window when Mica is unavailable. -->
+            <SolidColorBrush x:Key="SidebarBackground" Color="#0A0D12"/>
+            <!-- The card: log, lists, panels, the dialog footer. -->
+            <SolidColorBrush x:Key="LayerFill" Color="#111720"/>
+            <!-- Flyouts, menus, tooltips and other overlays. -->
+            <SolidColorBrush x:Key="OverlayBackground" Color="#151D26"/>
+            <SolidColorBrush x:Key="OverlayStroke" Color="#24313C"/>
+            <!-- Chrome that sits directly on the window (title bar, command bar). -->
+            <SolidColorBrush x:Key="ChromeBackground" Color="#000A0D12"/>
+
+            <!-- ===== Strokes ===== -->
+            <SolidColorBrush x:Key="BorderSubtle" Color="#1E2A35"/>
+            <SolidColorBrush x:Key="DividerStroke" Color="#172029"/>
+            <SolidColorBrush x:Key="CardStroke" Color="#18212A"/>
+            <!-- Standard control edge: slightly lighter at the top, like WinUI's elevation border. -->
+            <LinearGradientBrush x:Key="ControlElevationBorder" StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Offset="0.33" Color="#212C37"/>
+                <GradientStop Offset="1.0" Color="#212C37"/>
+            </LinearGradientBrush>
+            <!-- Text inputs: one hairline all round; the accent all round on focus. -->
+            <SolidColorBrush x:Key="TextControlElevationBorder" Color="#1C2732"/>
+            <SolidColorBrush x:Key="TextControlFocusedBorder" Color="#3ED1BD"/>
+
+            <!-- ===== Text ===== -->
+            <SolidColorBrush x:Key="ForegroundPrimary" Color="#E2EAEC"/>
+            <SolidColorBrush x:Key="ForegroundDimmed" Color="#9AAAB2"/>
+            <SolidColorBrush x:Key="ForegroundTertiary" Color="#82939C"/>
+            <SolidColorBrush x:Key="ForegroundDisabled" Color="#4A5A64"/>
+
+            <!-- ===== Accent: teal (the Accent* names predate it). The fill carries dark text in every theme. ===== -->
+            <SolidColorBrush x:Key="AccentBlue" Color="#3ED1BD"/>
+            <SolidColorBrush x:Key="AccentHover" Color="#5EDCCA"/>
+            <SolidColorBrush x:Key="AccentPressed" Color="#33B9A7"/>
+            <SolidColorBrush x:Key="AccentDisabled" Color="#14C3CED2"/>
+            <SolidColorBrush x:Key="TextOnAccent" Color="#05201C"/>
+            <SolidColorBrush x:Key="TextOnAccentPressed" Color="#B305201C"/>
+            <SolidColorBrush x:Key="AccentIndicator" Color="#3ED1BD"/>
+            <SolidColorBrush x:Key="AccentIndicatorStrong" Color="#7BEFDD"/>
+            <SolidColorBrush x:Key="AccentTint" Color="#263ED1BD"/>
+            <SolidColorBrush x:Key="AccentTintHover" Color="#363ED1BD"/>
+
+            <!-- ===== Status ===== -->
+            <SolidColorBrush x:Key="ErrorRed" Color="#FF5C7A"/>
+            <SolidColorBrush x:Key="WarningYellow" Color="#E8B04A"/>
+            <SolidColorBrush x:Key="SuccessGreen" Color="#5BC48C"/>
+            <!-- BO3's ^1-^7 colour codes in build output, tuned to read on this theme's card. -->
+            <SolidColorBrush x:Key="LogColor1" Color="#FF5C7A"/>
+            <SolidColorBrush x:Key="LogColor2" Color="#5BC48C"/>
+            <SolidColorBrush x:Key="LogColor3" Color="#E8B04A"/>
+            <SolidColorBrush x:Key="LogColor4" Color="#8CC6FF"/>
+            <SolidColorBrush x:Key="LogColor5" Color="#69D9C9"/>
+            <SolidColorBrush x:Key="LogColor6" Color="#A9BFD0"/>
+            <SolidColorBrush x:Key="LogColor7" Color="#C3CED2"/>
+            <!-- Quiet washes behind inline banners (Publish checks, first run). -->
+            <SolidColorBrush x:Key="ErrorTint" Color="#1AFF5C7A"/>
+            <SolidColorBrush x:Key="ErrorTintStroke" Color="#4DFF5C7A"/>
+            <SolidColorBrush x:Key="WarningTint" Color="#14F5A524"/>
+            <SolidColorBrush x:Key="WarningTintStroke" Color="#40F5A524"/>
+            <SolidColorBrush x:Key="SuccessTint" Color="#144CC38A"/>
+            <SolidColorBrush x:Key="SuccessTintStroke" Color="#404CC38A"/>
+            <!-- Destructive buttons. -->
+            <SolidColorBrush x:Key="DangerFill" Color="#FF5C7A"/>
+            <SolidColorBrush x:Key="DangerFillHover" Color="#FF7A92"/>
+            <SolidColorBrush x:Key="DangerFillPressed" Color="#E84E6C"/>
+            <SolidColorBrush x:Key="TextOnDanger" Color="#1F0710"/>
+            <SolidColorBrush x:Key="TextOnDangerPressed" Color="#B31F0710"/>
+
+            <!-- ===== Fills ===== -->
+            <SolidColorBrush x:Key="ControlFill" Color="#00C3CED2"/>
+            <SolidColorBrush x:Key="ControlFillHover" Color="#0DC3CED2"/>
+            <SolidColorBrush x:Key="ControlFillPressed" Color="#06C3CED2"/>
+            <SolidColorBrush x:Key="ControlFillDisabled" Color="#00C3CED2"/>
+            <!-- "Subtle" fills: transparent at rest (toolbar buttons, list rows, menu items). -->
+            <SolidColorBrush x:Key="TreeItemHover" Color="#0AC3CED2"/>
+            <SolidColorBrush x:Key="SubtlePressed" Color="#06C3CED2"/>
+            <SolidColorBrush x:Key="TreeItemSelected" Color="#12C3CED2"/>
+            <!-- Fields: no fill of their own in the card (the hairline draws them); the project picker on the window is a filled field. -->
+            <SolidColorBrush x:Key="InputBackground" Color="#00000000"/>
+            <SolidColorBrush x:Key="InputBackgroundFocused" Color="#0E141B"/>
+            <SolidColorBrush x:Key="FieldFill" Color="#0E141B"/>
+            <!-- A build step that will run, and the key caps in lists and the palette. -->
+            <SolidColorBrush x:Key="StepFill" Color="#151D26"/>
+            <SolidColorBrush x:Key="StepStroke" Color="#24313C"/>
+            <SolidColorBrush x:Key="KeycapFill" Color="#151D26"/>
+            <!-- Keyboard focus ring: accent outer, card-coloured inner. -->
+            <SolidColorBrush x:Key="SystemControlFocusVisualPrimaryBrush" Color="#3ED1BD"/>
+            <SolidColorBrush x:Key="SystemControlFocusVisualSecondaryBrush" Color="#111720"/>
+
+            <!-- ===== FluentTheme key overrides: the same in every theme (see the header). ===== -->
+            <!-- Standard button -->
+            <StaticResource x:Key="ButtonBackground" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="ControlFillPressed"/>
+            <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="ButtonForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="ButtonForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="ButtonBorderBrush" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ButtonBorderBrushDisabled" ResourceKey="CardStroke"/>
+
+            <!-- Accent button (also used by Button.accent) -->
+            <StaticResource x:Key="AccentButtonBackground" ResourceKey="AccentBlue"/>
+            <StaticResource x:Key="AccentButtonBackgroundPointerOver" ResourceKey="AccentHover"/>
+            <StaticResource x:Key="AccentButtonBackgroundPressed" ResourceKey="AccentPressed"/>
+            <StaticResource x:Key="AccentButtonBackgroundDisabled" ResourceKey="AccentDisabled"/>
+            <StaticResource x:Key="AccentButtonForeground" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="AccentButtonForegroundPointerOver" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="AccentButtonForegroundPressed" ResourceKey="TextOnAccentPressed"/>
+            <StaticResource x:Key="AccentButtonForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#1A000000"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrushPointerOver" Color="#1A000000"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrushPressed" Color="#00000000"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrushDisabled" Color="#00000000"/>
+
+            <!-- Toggle button: standard at rest, accent when checked -->
+            <StaticResource x:Key="ToggleButtonBackground" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="ControlFillPressed"/>
+            <StaticResource x:Key="ToggleButtonBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="ToggleButtonForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ToggleButtonForegroundPressed" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="ToggleButtonForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="ToggleButtonBorderBrush" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ToggleButtonBorderBrushPointerOver" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ToggleButtonBorderBrushPressed" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ToggleButtonBorderBrushDisabled" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="AccentBlue"/>
+            <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="AccentHover"/>
+            <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="AccentPressed"/>
+            <StaticResource x:Key="ToggleButtonBackgroundCheckedDisabled" ResourceKey="AccentDisabled"/>
+            <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="TextOnAccentPressed"/>
+            <StaticResource x:Key="ToggleButtonForegroundCheckedDisabled" ResourceKey="ForegroundDisabled"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#1A000000"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#1A000000"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#00000000"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedDisabled" Color="#00000000"/>
+
+            <!-- Text inputs -->
+            <StaticResource x:Key="TextControlBackground" ResourceKey="InputBackground"/>
+            <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="InputBackgroundFocused"/>
+            <StaticResource x:Key="TextControlBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="TextControlBorderBrush" ResourceKey="TextControlElevationBorder"/>
+            <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="TextControlElevationBorder"/>
+            <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="TextControlFocusedBorder"/>
+            <StaticResource x:Key="TextControlBorderBrushDisabled" ResourceKey="CardStroke"/>
+
+            <!-- ComboBox -->
+            <StaticResource x:Key="ComboBoxBackground" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="ControlFillPressed"/>
+            <StaticResource x:Key="ComboBoxBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="ComboBoxBackgroundUnfocused" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ComboBoxBorderBrushPointerOver" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ComboBoxBorderBrushPressed" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ComboBoxBorderBrushDisabled" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ComboBoxForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ComboBoxForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="ComboBoxDropDownBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="ComboBoxDropDownBorderBrush" ResourceKey="OverlayStroke"/>
+            <StaticResource x:Key="ComboBoxDropDownGlyphForeground" ResourceKey="ForegroundDimmed"/>
+            <SolidColorBrush x:Key="ComboBoxItemBackground" Color="#00FFFFFF"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundPointerOver" ResourceKey="TreeItemHover"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundPressed" ResourceKey="SubtlePressed"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundSelected" ResourceKey="TreeItemHover"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundSelectedPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundSelectedPressed" ResourceKey="SubtlePressed"/>
+            <StaticResource x:Key="ComboBoxItemForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ComboBoxItemForegroundSelected" ResourceKey="ForegroundPrimary"/>
+
+            <!-- Menus, flyouts, tooltips -->
+            <StaticResource x:Key="MenuFlyoutPresenterBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="MenuFlyoutPresenterBorderBrush" ResourceKey="OverlayStroke"/>
+            <SolidColorBrush x:Key="MenuFlyoutItemBackground" Color="#00FFFFFF"/>
+            <StaticResource x:Key="MenuFlyoutItemBackgroundPointerOver" ResourceKey="TreeItemHover"/>
+            <StaticResource x:Key="MenuFlyoutItemBackgroundPressed" ResourceKey="SubtlePressed"/>
+            <StaticResource x:Key="MenuFlyoutItemForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="MenuFlyoutItemForegroundPointerOver" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="MenuFlyoutItemForegroundPressed" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="MenuFlyoutItemForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="MenuFlyoutItemKeyboardAcceleratorTextForeground" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="MenuFlyoutItemKeyboardAcceleratorTextForegroundPointerOver" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="FlyoutPresenterBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="ToolTipBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="ToolTipBorderBrush" ResourceKey="OverlayStroke"/>
+            <StaticResource x:Key="ToolTipForeground" ResourceKey="ForegroundPrimary"/>
+        </ResourceDictionary>
+
+        <!-- Light: a white card on a pale window. What a light Windows gets. -->
+        <ResourceDictionary x:Key="Light">
+            <!-- ===== Surfaces ===== -->
+            <!-- Over Mica: the window colour at ~90%, so Mica only grains it and every theme reads as itself. -->
+            <SolidColorBrush x:Key="MicaTint" Color="#E6ECEEF0"/>
+            <!-- Solid base for dialogs, and the main window when Mica is unavailable. -->
+            <SolidColorBrush x:Key="SidebarBackground" Color="#ECEEF0"/>
+            <!-- The card: log, lists, panels, the dialog footer. -->
+            <SolidColorBrush x:Key="LayerFill" Color="#FFFFFF"/>
+            <!-- Flyouts, menus, tooltips and other overlays. -->
+            <SolidColorBrush x:Key="OverlayBackground" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="OverlayStroke" Color="#D6DBE0"/>
+            <!-- Chrome that sits directly on the window (title bar, command bar). -->
+            <SolidColorBrush x:Key="ChromeBackground" Color="#00ECEEF0"/>
+
+            <!-- ===== Strokes ===== -->
+            <SolidColorBrush x:Key="BorderSubtle" Color="#D6DBE0"/>
+            <SolidColorBrush x:Key="DividerStroke" Color="#E6E8EB"/>
+            <SolidColorBrush x:Key="CardStroke" Color="#E1E4E8"/>
+            <!-- Standard control edge: slightly lighter at the top, like WinUI's elevation border. -->
+            <LinearGradientBrush x:Key="ControlElevationBorder" StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Offset="0.33" Color="#D6DBE0"/>
+                <GradientStop Offset="1.0" Color="#C9CFD5"/>
+            </LinearGradientBrush>
+            <!-- Text inputs: one hairline all round; the accent all round on focus. -->
+            <SolidColorBrush x:Key="TextControlElevationBorder" Color="#D6DBE0"/>
+            <SolidColorBrush x:Key="TextControlFocusedBorder" Color="#0B7D6F"/>
+
+            <!-- ===== Text ===== -->
+            <SolidColorBrush x:Key="ForegroundPrimary" Color="#161C21"/>
+            <SolidColorBrush x:Key="ForegroundDimmed" Color="#434E55"/>
+            <SolidColorBrush x:Key="ForegroundTertiary" Color="#5F6C74"/>
+            <SolidColorBrush x:Key="ForegroundDisabled" Color="#A3ADB4"/>
+
+            <!-- ===== Accent: teal (the Accent* names predate it). The fill carries dark text in every theme. ===== -->
+            <SolidColorBrush x:Key="AccentBlue" Color="#3ED1BD"/>
+            <SolidColorBrush x:Key="AccentHover" Color="#5EDCCA"/>
+            <SolidColorBrush x:Key="AccentPressed" Color="#33B9A7"/>
+            <SolidColorBrush x:Key="AccentDisabled" Color="#0F161C21"/>
+            <SolidColorBrush x:Key="TextOnAccent" Color="#05201C"/>
+            <SolidColorBrush x:Key="TextOnAccentPressed" Color="#B305201C"/>
+            <SolidColorBrush x:Key="AccentIndicator" Color="#0B7D6F"/>
+            <SolidColorBrush x:Key="AccentIndicatorStrong" Color="#09695E"/>
+            <SolidColorBrush x:Key="AccentTint" Color="#1A0B7D6F"/>
+            <SolidColorBrush x:Key="AccentTintHover" Color="#290B7D6F"/>
+
+            <!-- ===== Status ===== -->
+            <SolidColorBrush x:Key="ErrorRed" Color="#C02A45"/>
+            <SolidColorBrush x:Key="WarningYellow" Color="#B45309"/>
+            <SolidColorBrush x:Key="SuccessGreen" Color="#1E7F52"/>
+            <!-- BO3's ^1-^7 colour codes in build output, tuned to read on this theme's card. -->
+            <SolidColorBrush x:Key="LogColor1" Color="#C02A45"/>
+            <SolidColorBrush x:Key="LogColor2" Color="#1E7F52"/>
+            <SolidColorBrush x:Key="LogColor3" Color="#8A6100"/>
+            <SolidColorBrush x:Key="LogColor4" Color="#1F63A8"/>
+            <SolidColorBrush x:Key="LogColor5" Color="#0B7D6F"/>
+            <SolidColorBrush x:Key="LogColor6" Color="#4B6A80"/>
+            <SolidColorBrush x:Key="LogColor7" Color="#2F383E"/>
+            <!-- Quiet washes behind inline banners (Publish checks, first run). -->
+            <SolidColorBrush x:Key="ErrorTint" Color="#14D6334F"/>
+            <SolidColorBrush x:Key="ErrorTintStroke" Color="#4DD6334F"/>
+            <SolidColorBrush x:Key="WarningTint" Color="#14D97706"/>
+            <SolidColorBrush x:Key="WarningTintStroke" Color="#4DD97706"/>
+            <SolidColorBrush x:Key="SuccessTint" Color="#141E9E63"/>
+            <SolidColorBrush x:Key="SuccessTintStroke" Color="#4D1E9E63"/>
+            <!-- Destructive buttons. -->
+            <SolidColorBrush x:Key="DangerFill" Color="#D6334F"/>
+            <SolidColorBrush x:Key="DangerFillHover" Color="#E04460"/>
+            <SolidColorBrush x:Key="DangerFillPressed" Color="#C02A45"/>
+            <SolidColorBrush x:Key="TextOnDanger" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="TextOnDangerPressed" Color="#D9FFFFFF"/>
+
+            <!-- ===== Fills ===== -->
+            <SolidColorBrush x:Key="ControlFill" Color="#00FFFFFF"/>
+            <SolidColorBrush x:Key="ControlFillHover" Color="#0A161C21"/>
+            <SolidColorBrush x:Key="ControlFillPressed" Color="#12161C21"/>
+            <SolidColorBrush x:Key="ControlFillDisabled" Color="#00FFFFFF"/>
+            <!-- "Subtle" fills: transparent at rest (toolbar buttons, list rows, menu items). -->
+            <SolidColorBrush x:Key="TreeItemHover" Color="#0A161C21"/>
+            <SolidColorBrush x:Key="SubtlePressed" Color="#06161C21"/>
+            <SolidColorBrush x:Key="TreeItemSelected" Color="#0F161C21"/>
+            <!-- Fields: no fill of their own in the card (the hairline draws them); the project picker on the window is a filled field. -->
+            <SolidColorBrush x:Key="InputBackground" Color="#00FFFFFF"/>
+            <SolidColorBrush x:Key="InputBackgroundFocused" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="FieldFill" Color="#F5F6F8"/>
+            <!-- A build step that will run, and the key caps in lists and the palette. -->
+            <SolidColorBrush x:Key="StepFill" Color="#F1F3F5"/>
+            <SolidColorBrush x:Key="StepStroke" Color="#C9CFD5"/>
+            <SolidColorBrush x:Key="KeycapFill" Color="#EDEFF2"/>
+            <!-- Keyboard focus ring: accent outer, card-coloured inner. -->
+            <SolidColorBrush x:Key="SystemControlFocusVisualPrimaryBrush" Color="#0B7D6F"/>
+            <SolidColorBrush x:Key="SystemControlFocusVisualSecondaryBrush" Color="#FFFFFF"/>
+
+            <!-- ===== FluentTheme key overrides: the same in every theme (see the header). ===== -->
+            <!-- Standard button -->
+            <StaticResource x:Key="ButtonBackground" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="ControlFillPressed"/>
+            <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="ButtonForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="ButtonForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="ButtonBorderBrush" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ButtonBorderBrushDisabled" ResourceKey="CardStroke"/>
+
+            <!-- Accent button (also used by Button.accent) -->
+            <StaticResource x:Key="AccentButtonBackground" ResourceKey="AccentBlue"/>
+            <StaticResource x:Key="AccentButtonBackgroundPointerOver" ResourceKey="AccentHover"/>
+            <StaticResource x:Key="AccentButtonBackgroundPressed" ResourceKey="AccentPressed"/>
+            <StaticResource x:Key="AccentButtonBackgroundDisabled" ResourceKey="AccentDisabled"/>
+            <StaticResource x:Key="AccentButtonForeground" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="AccentButtonForegroundPointerOver" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="AccentButtonForegroundPressed" ResourceKey="TextOnAccentPressed"/>
+            <StaticResource x:Key="AccentButtonForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#1A000000"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrushPointerOver" Color="#1A000000"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrushPressed" Color="#00000000"/>
+            <SolidColorBrush x:Key="AccentButtonBorderBrushDisabled" Color="#00000000"/>
+
+            <!-- Toggle button: standard at rest, accent when checked -->
+            <StaticResource x:Key="ToggleButtonBackground" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="ControlFillPressed"/>
+            <StaticResource x:Key="ToggleButtonBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="ToggleButtonForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ToggleButtonForegroundPressed" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="ToggleButtonForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="ToggleButtonBorderBrush" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ToggleButtonBorderBrushPointerOver" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ToggleButtonBorderBrushPressed" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ToggleButtonBorderBrushDisabled" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="AccentBlue"/>
+            <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="AccentHover"/>
+            <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="AccentPressed"/>
+            <StaticResource x:Key="ToggleButtonBackgroundCheckedDisabled" ResourceKey="AccentDisabled"/>
+            <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="TextOnAccent"/>
+            <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="TextOnAccentPressed"/>
+            <StaticResource x:Key="ToggleButtonForegroundCheckedDisabled" ResourceKey="ForegroundDisabled"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#1A000000"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#1A000000"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#00000000"/>
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedDisabled" Color="#00000000"/>
+
+            <!-- Text inputs -->
+            <StaticResource x:Key="TextControlBackground" ResourceKey="InputBackground"/>
+            <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="InputBackgroundFocused"/>
+            <StaticResource x:Key="TextControlBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="TextControlBorderBrush" ResourceKey="TextControlElevationBorder"/>
+            <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="TextControlElevationBorder"/>
+            <StaticResource x:Key="TextControlBorderBrushFocused" ResourceKey="TextControlFocusedBorder"/>
+            <StaticResource x:Key="TextControlBorderBrushDisabled" ResourceKey="CardStroke"/>
+
+            <!-- ComboBox -->
+            <StaticResource x:Key="ComboBoxBackground" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="ControlFillPressed"/>
+            <StaticResource x:Key="ComboBoxBackgroundDisabled" ResourceKey="ControlFillDisabled"/>
+            <StaticResource x:Key="ComboBoxBackgroundUnfocused" ResourceKey="ControlFill"/>
+            <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ComboBoxBorderBrushPointerOver" ResourceKey="ControlElevationBorder"/>
+            <StaticResource x:Key="ComboBoxBorderBrushPressed" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ComboBoxBorderBrushDisabled" ResourceKey="CardStroke"/>
+            <StaticResource x:Key="ComboBoxForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ComboBoxForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="ComboBoxDropDownBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="ComboBoxDropDownBorderBrush" ResourceKey="OverlayStroke"/>
+            <StaticResource x:Key="ComboBoxDropDownGlyphForeground" ResourceKey="ForegroundDimmed"/>
+            <SolidColorBrush x:Key="ComboBoxItemBackground" Color="#00FFFFFF"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundPointerOver" ResourceKey="TreeItemHover"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundPressed" ResourceKey="SubtlePressed"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundSelected" ResourceKey="TreeItemHover"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundSelectedPointerOver" ResourceKey="ControlFillHover"/>
+            <StaticResource x:Key="ComboBoxItemBackgroundSelectedPressed" ResourceKey="SubtlePressed"/>
+            <StaticResource x:Key="ComboBoxItemForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="ComboBoxItemForegroundSelected" ResourceKey="ForegroundPrimary"/>
+
+            <!-- Menus, flyouts, tooltips -->
+            <StaticResource x:Key="MenuFlyoutPresenterBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="MenuFlyoutPresenterBorderBrush" ResourceKey="OverlayStroke"/>
+            <SolidColorBrush x:Key="MenuFlyoutItemBackground" Color="#00FFFFFF"/>
+            <StaticResource x:Key="MenuFlyoutItemBackgroundPointerOver" ResourceKey="TreeItemHover"/>
+            <StaticResource x:Key="MenuFlyoutItemBackgroundPressed" ResourceKey="SubtlePressed"/>
+            <StaticResource x:Key="MenuFlyoutItemForeground" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="MenuFlyoutItemForegroundPointerOver" ResourceKey="ForegroundPrimary"/>
+            <StaticResource x:Key="MenuFlyoutItemForegroundPressed" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="MenuFlyoutItemForegroundDisabled" ResourceKey="ForegroundDisabled"/>
+            <StaticResource x:Key="MenuFlyoutItemKeyboardAcceleratorTextForeground" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="MenuFlyoutItemKeyboardAcceleratorTextForegroundPointerOver" ResourceKey="ForegroundDimmed"/>
+            <StaticResource x:Key="FlyoutPresenterBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="ToolTipBackground" ResourceKey="OverlayBackground"/>
+            <StaticResource x:Key="ToolTipBorderBrush" ResourceKey="OverlayStroke"/>
+            <StaticResource x:Key="ToolTipForeground" ResourceKey="ForegroundPrimary"/>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

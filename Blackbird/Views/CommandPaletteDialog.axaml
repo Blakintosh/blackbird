@@ -1,0 +1,113 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        x:Class="Blackbird.Views.CommandPaletteDialog"
+        x:DataType="vm:CommandPaletteDialogViewModel"
+        Title="Command palette"
+        Width="600" Height="450"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="BorderOnly"
+        CanResize="False"
+        ShowInTaskbar="False">
+
+    <Border Background="{DynamicResource OverlayBackground}"
+            BorderBrush="{DynamicResource OverlayStroke}"
+            BorderThickness="1"
+            CornerRadius="8">
+        <Grid RowDefinitions="Auto,*,Auto" Margin="0">
+            <!-- Search -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource LayerFill}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="0,0,0,1"
+                    Padding="14,10">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="16"
+                               Foreground="{DynamicResource ForegroundDimmed}"
+                               VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1"
+                             Name="SearchBox"
+                             Classes="bare"
+                             Text="{Binding SearchQuery, Mode=TwoWay}"
+                             Watermark="Run a command or switch project"
+                             FontSize="15"
+                             KeyDown="OnSearchKeyDown"/>
+                </Grid>
+            </Border>
+
+            <!-- Results -->
+            <ListBox Grid.Row="1"
+                     Name="ResultsList"
+                     Classes="palette"
+                     ItemsSource="{Binding Items}"
+                     SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
+                     Background="{DynamicResource SidebarBackground}"
+                     BorderThickness="0"
+                     Padding="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     Tapped="OnItemTapped">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="vm:CommandPaletteEntry">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding Detail}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource ForegroundDimmed}"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <!-- Invisible parts take no spacing, so badges and keys share one right edge. -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding StatusLabel}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource ForegroundTertiary}"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding HasStatusLabel}"/>
+                                <Border Classes="type-badge" IsVisible="{Binding HasTypeLabel}">
+                                    <TextBlock Text="{Binding TypeLabel}"/>
+                                </Border>
+                                <ItemsControl ItemsSource="{Binding ShortcutKeys}"
+                                              IsVisible="{Binding HasShortcut}"
+                                              VerticalAlignment="Center">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="3"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <Border Classes="keycap">
+                                                <TextBlock Text="{Binding}"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <TextBlock Grid.Row="1"
+                       Text="No commands or projects match."
+                       Foreground="{DynamicResource ForegroundDimmed}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding HasNoResults}"/>
+
+            <!-- Hint footer -->
+            <Border Grid.Row="2"
+                    Background="{DynamicResource LayerFill}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="0,1,0,0"
+                    Padding="14,6">
+                <TextBlock FontSize="12" Foreground="{DynamicResource ForegroundDimmed}"
+                           Text="Enter or click to run · ↑/↓ to move · Esc to close"/>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

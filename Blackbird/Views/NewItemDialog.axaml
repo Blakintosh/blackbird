@@ -1,0 +1,121 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:views="using:Blackbird.Views"
+        x:Class="Blackbird.Views.NewItemDialog"
+        x:DataType="vm:NewItemDialogViewModel"
+        WindowStartupLocation="CenterOwner"
+        Classes="dialog"
+        Title="New map or mod"
+        Width="560" SizeToContent="Height"
+        CanResize="False">
+
+    <views:DialogShell Title="New map or mod">
+        <views:DialogShell.Status>
+            <TextBlock Classes="error" Text="{Binding ErrorMessage}" ToolTip.Tip="{Binding ErrorDetail}"/>
+        </views:DialogShell.Status>
+        <views:DialogShell.Footer>
+            <StackPanel Classes="dialog-buttons">
+                <Button Click="OnCreateClick" IsDefault="True" AutomationProperties.Name="Create"
+                        IsEnabled="{Binding CanCreate}"
+                        Theme="{StaticResource AccentButton}">
+                    <Panel Classes="busy-label" Classes.busy="{Binding ShowBusy}">
+                        <TextBlock Text="Create" HorizontalAlignment="Center"/>
+                        <ProgressBar/>
+                    </Panel>
+                </Button>
+                <Button Content="Cancel" IsCancel="True" IsEnabled="{Binding IsIdle}"
+                        Click="OnCancelClick"
+                        Theme="{StaticResource SubtleButton}"/>
+            </StackPanel>
+        </views:DialogShell.Footer>
+
+        <StackPanel Classes="form" IsEnabled="{Binding IsIdle}">
+            <StackPanel Classes="field">
+                <TextBlock Classes="label" Text="Name"/>
+                <TextBox Name="NameBox"
+                         Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         Watermark="{Binding NameWatermark}"
+                         MaxLength="64"
+                         LostFocus="OnNameLostFocus"/>
+                <Grid Classes="field-message" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock Classes="hint" Text="{Binding NameHint}"
+                               IsVisible="{Binding NameError, Converter={x:Static StringConverters.IsNullOrEmpty}}"/>
+                    <TextBlock Classes="field-error" Text="{Binding NameError}"
+                               IsVisible="{Binding NameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                    <Button Grid.Column="1"
+                            Theme="{StaticResource ToolbarButton}" Classes="link"
+                            Content="{Binding PrefixFixLabel}"
+                            IsVisible="{Binding HasPrefixFix}"
+                            Click="OnPrefixFixClick"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- Both columns end in the same reserved message line, so switching Map and Mod
+                 never changes the dialog's height. -->
+            <Grid ColumnDefinitions="160,*" ColumnSpacing="16">
+                <StackPanel Classes="field">
+                    <TextBlock Classes="label" Text="Type"/>
+                    <ComboBox ItemsSource="{Binding ProjectKinds}"
+                              SelectedIndex="{Binding SelectedProjectKindIndex}"
+                              HorizontalAlignment="Stretch"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Classes="field" IsVisible="{Binding IsMapMode}">
+                    <TextBlock Classes="label" Text="Template"/>
+                    <Panel MinHeight="32">
+                        <ComboBox ItemsSource="{Binding Templates}"
+                                  SelectedIndex="{Binding SelectedTemplateIndex}"
+                                  HorizontalAlignment="Stretch"
+                                  IsVisible="{Binding ShowTemplatePicker}"/>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                              IsVisible="{Binding IsTemplateMissing}">
+                            <TextBlock Classes="field-error" Text="No map templates found."
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1"
+                                    Content="Setup Doctor…"
+                                    Click="OnOpenSetupDoctorClick"
+                                    Theme="{StaticResource SubtleButton}"/>
+                        </Grid>
+                    </Panel>
+                    <Grid Classes="field-message">
+                        <TextBlock Classes="hint" Text="{Binding TemplatesFolder}"
+                                   TextWrapping="NoWrap"
+                                   TextTrimming="PathSegmentEllipsis"
+                                   ToolTip.Tip="{Binding TemplatesFolder}"
+                                   IsVisible="{Binding IsTemplateMissing}"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Classes="field" IsVisible="{Binding IsModMode}">
+                    <TextBlock Classes="label" Text="Zones"/>
+                    <WrapPanel MinHeight="32" ItemSpacing="16">
+                        <CheckBox Content="Core" IsChecked="{Binding CreateCoreZone}"/>
+                        <CheckBox Content="Zombies" IsChecked="{Binding CreateZombiesZone}"/>
+                        <CheckBox Content="MP" IsChecked="{Binding CreateMultiplayerZone}"/>
+                        <CheckBox Content="CP" IsChecked="{Binding CreateCampaignZone}"/>
+                    </WrapPanel>
+                    <Grid Classes="field-message">
+                        <TextBlock Classes="field-error" Text="{Binding ZoneError}"/>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <StackPanel Classes="field">
+                    <TextBlock Classes="label" Text="Display name"/>
+                    <TextBox Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Watermark="{Binding TrimmedName}"
+                             MaxLength="80"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Classes="field">
+                    <TextBlock Classes="label" Text="Category"/>
+                    <AutoCompleteBox ItemsSource="{Binding CategorySuggestions}"
+                                     Text="{Binding Category, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MaxLength="40"
+                                     MinimumPrefixLength="0"/>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </views:DialogShell>
+</Window>

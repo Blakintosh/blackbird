@@ -1,0 +1,471 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:models="using:Blackbird.Models"
+        xmlns:views="using:Blackbird.Views"
+        x:Class="Blackbird.Views.PublishDialog"
+        x:DataType="vm:PublishDialogViewModel"
+        WindowStartupLocation="CenterOwner"
+        Classes="dialog tool"
+        Title="Publish to Workshop"
+        Width="1040" Height="640"
+        MinWidth="880" MinHeight="540">
+
+    <views:DialogShell Title="Publish to Workshop"
+                       Subtitle="{Binding HeaderSubtitle}"
+                       Padding="24,16,0,24">
+        <views:DialogShell.Status>
+            <Panel>
+                <TextBlock Classes="status"
+                           Text="{Binding FooterStatusText}"
+                           IsVisible="{Binding ShowDraftStatus}"/>
+                <StackPanel Orientation="Horizontal"
+                            Spacing="12"
+                            IsVisible="{Binding IsUploading}">
+                    <ProgressBar Width="200"
+                                 Height="4" MinHeight="4"
+                                 CornerRadius="2"
+                                 VerticalAlignment="Center"
+                                 Minimum="0" Maximum="100"
+                                 Value="{Binding UploadPercent}"
+                                 IsIndeterminate="{Binding !IsUploadProgressKnown}"
+                                 Foreground="{DynamicResource AccentIndicator}"
+                                 Background="{DynamicResource ControlFill}"/>
+                    <TextBlock Classes="status" Text="{Binding UploadStatusText}"/>
+                </StackPanel>
+                <TextBlock Classes="error"
+                           Text="{Binding ErrorMessage}"
+                           ToolTip.Tip="{Binding ErrorDetail}"
+                           IsVisible="{Binding HasError}"/>
+                <StackPanel Orientation="Horizontal"
+                            Spacing="8"
+                            IsVisible="{Binding IsPublished}">
+                    <TextBlock Classes="row-icon-ok"
+                               Text="&#xE73E;"
+                               FontFamily="{StaticResource IconFont}"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding !NeedsLegalAgreement}"/>
+                    <TextBlock Classes="row-icon-warning"
+                               Text="&#xE7BA;"
+                               FontFamily="{StaticResource IconFont}"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding NeedsLegalAgreement}"/>
+                    <TextBlock Classes="status"
+                               Text="{Binding PublishedStatusText}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Panel>
+        </views:DialogShell.Status>
+        <views:DialogShell.Footer>
+            <StackPanel Classes="dialog-buttons">
+                <!-- While uploading, progress shows on the left and only Cancel remains. -->
+                <!-- Not the default button: Enter in Title or Thumbnail would otherwise upload, and an update to a
+                     public item overwrites what every subscriber sees. Publishing is always a deliberate click. -->
+                <Button x:Name="PrimaryButton"
+                        Theme="{StaticResource AccentButton}"
+                        IsVisible="{Binding !IsUploading}"
+                        IsEnabled="{Binding IsPrimaryEnabled}"
+                        ToolTip.Tip="{Binding PublishButtonToolTip}"
+                        ToolTip.ShowOnDisabled="True"
+                        Content="{Binding PrimaryButtonText}"
+                        Click="OnPrimaryClick"/>
+                <Button Theme="{StaticResource SubtleButton}"
+                        IsCancel="True"
+                        Content="{Binding SecondaryButtonText}"
+                        Click="OnSecondaryClick"/>
+            </StackPanel>
+        </views:DialogShell.Footer>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <!-- The right margin keeps every control clear of the scrollbar, which sits in the gutter. -->
+            <Grid RowDefinitions="Auto,*"
+                  RowSpacing="16"
+                  Margin="0,0,24,0"
+                  IsEnabled="{Binding IsFormEnabled}">
+
+                <!-- Preflight and Workshop sync. Blockers and items to review stay open;
+                     warnings alone collapse behind the toggle. -->
+                <Border Classes="banner"
+                        Classes.blocker="{Binding IsBannerLevelBlocker}"
+                        Classes.warning="{Binding IsBannerLevelWarning}"
+                        Classes.info="{Binding IsBannerLevelInfo}"
+                        Classes.ok="{Binding IsBannerLevelOk}"
+                        IsVisible="{Binding HasAnyChecks}">
+                    <StackPanel>
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                              ColumnSpacing="12"
+                              MinHeight="40"
+                              Margin="16,4,8,4">
+                            <TextBlock Text="{Binding BannerIcon}"
+                                       FontFamily="{StaticResource IconFont}"
+                                       FontSize="16"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding BannerSummary}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="2"
+                                    Theme="{StaticResource ToolbarButton}"
+                                    MinWidth="32"
+                                    IsVisible="{Binding CanCollapseBanner}"
+                                    AutomationProperties.Name="{Binding BannerToggleToolTip}"
+                                    ToolTip.Tip="{Binding BannerToggleToolTip}"
+                                    Click="OnBannerToggleClick">
+                                <TextBlock Text="{Binding ChevronIcon}"
+                                           FontFamily="{StaticResource IconFont}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource ForegroundDimmed}"/>
+                            </Button>
+                        </Grid>
+
+                        <ItemsControl IsVisible="{Binding ShowBannerRows}"
+                                      ItemsSource="{Binding Checks}"
+                                      Margin="16,0,16,8">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="models:PublishPreflightCheck">
+                                    <Border BorderThickness="0,1,0,0"
+                                            BorderBrush="{DynamicResource DividerStroke}"
+                                            Padding="0,8">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                                            <TextBlock Text="{Binding StatusIcon}"
+                                                       FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14"
+                                                       VerticalAlignment="Top"
+                                                       Margin="0,2,0,0"
+                                                       Classes.row-icon-blocker="{Binding IsBlocker}"
+                                                       Classes.row-icon-warning="{Binding IsWarning}"
+                                                       Classes.row-icon-info="{Binding IsInfo}"
+                                                       Classes.row-icon-ok="{Binding IsOk}"/>
+                                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Check}" FontWeight="SemiBold"/>
+                                                <TextBlock Classes="hint"
+                                                           Text="{Binding Detail}"
+                                                           ToolTip.Tip="{Binding DetailToolTip}"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="2"
+                                                    Theme="{StaticResource SubtleButton}"
+                                                    Content="{Binding PrimaryAction.Label}"
+                                                    Tag="{Binding PrimaryAction}"
+                                                    IsVisible="{Binding PrimaryAction, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                    VerticalAlignment="Center"
+                                                    Click="OnPreflightActionClick"/>
+                                            <Button Grid.Column="3"
+                                                    Theme="{StaticResource SubtleButton}"
+                                                    Content="{Binding SecondaryAction.Label}"
+                                                    Tag="{Binding SecondaryAction}"
+                                                    IsVisible="{Binding SecondaryAction, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                    VerticalAlignment="Center"
+                                                    Click="OnPreflightActionClick"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="1"
+                      ColumnDefinitions="*,320"
+                      ColumnSpacing="32">
+
+                    <!-- Left: the words. -->
+                    <Grid RowDefinitions="Auto,*,Auto,Auto"
+                          RowSpacing="16">
+                        <Grid ColumnDefinitions="*,180" ColumnSpacing="16">
+                            <StackPanel Classes="field">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Classes="label" Text="Title"/>
+                                    <TextBlock Classes="field-flag row-icon-blocker" Text="&#xE783;"
+                                               IsVisible="{Binding IsTitleBlocker}"
+                                               ToolTip.Tip="See the issue above"/>
+                                </StackPanel>
+                                <TextBox x:Name="TitleTextBox"
+                                         Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Classes="field">
+                                <TextBlock Classes="label" Text="Visibility"/>
+                                <ComboBox ItemsSource="{Binding VisibilityOptions}"
+                                          SelectedIndex="{Binding SelectedVisibilityIndex}"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate DataType="vm:VisibilityOption">
+                                            <TextBlock Text="{Binding Name}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Grid.Row="1"
+                              RowDefinitions="Auto,Auto,*"
+                              ColumnDefinitions="*,*"
+                              ColumnSpacing="16"
+                              RowSpacing="8">
+                            <Grid Grid.ColumnSpan="2" Classes="field-header" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock Classes="label" Text="Description"/>
+                                    <TextBlock Classes="field-flag row-icon-warning" Text="&#xE7BA;"
+                                               IsVisible="{Binding IsDescriptionWarning}"
+                                               ToolTip.Tip="See the note above"/>
+                                    <TextBlock Classes="field-flag row-icon-blocker" Text="&#xE783;"
+                                               IsVisible="{Binding IsDescriptionBlocker}"
+                                               ToolTip.Tip="See the issue above"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1"
+                                           Classes="hint"
+                                           Text="{Binding DescriptionCount}"
+                                           VerticalAlignment="Center"/>
+                                <Button Grid.Column="2"
+                                        Theme="{StaticResource ToolbarButton}"
+                                        Classes="link quiet"
+                                        Content="Copy"
+                                        ToolTip.Tip="Copy the description"
+                                        Click="OnCopyDescriptionClick"/>
+                            </Grid>
+
+                            <StackPanel Grid.Row="1" Classes="bbcode-toolbar" Orientation="Horizontal" Spacing="2">
+                                <Button Theme="{StaticResource ToolbarButton}" Content="B" FontWeight="Bold" AutomationProperties.Name="Bold"
+                                        ToolTip.Tip="Bold (Ctrl+B)" Click="OnBoldClick"/>
+                                <Button Theme="{StaticResource ToolbarButton}" Content="I" FontStyle="Italic" AutomationProperties.Name="Italic"
+                                        ToolTip.Tip="Italic (Ctrl+I)" Click="OnItalicClick"/>
+                                <Button Theme="{StaticResource ToolbarButton}"
+                                        AutomationProperties.Name="Underline"
+                                        ToolTip.Tip="Underline (Ctrl+U)" Click="OnUnderlineClick">
+                                    <TextBlock Text="U" TextDecorations="Underline"/>
+                                </Button>
+                                <Button Theme="{StaticResource ToolbarButton}" Content="H1"
+                                        ToolTip.Tip="Heading" Click="OnHeadingClick"/>
+                                <Button Theme="{StaticResource ToolbarButton}" Content="Link"
+                                        ToolTip.Tip="Link" Click="OnLinkClick"/>
+                                <Button Theme="{StaticResource ToolbarButton}" Content="List"
+                                        ToolTip.Tip="Bulleted list" Click="OnListClick"/>
+                                <Button Theme="{StaticResource ToolbarButton}" Content="Quote"
+                                        ToolTip.Tip="Quote" Click="OnQuoteClick"/>
+                                <Button Theme="{StaticResource ToolbarButton}" Content="Code"
+                                        ToolTip.Tip="Code block" Click="OnCodeClick"/>
+                            </StackPanel>
+                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                       Classes="hint"
+                                       Text="Preview"
+                                       VerticalAlignment="Center"/>
+
+                            <TextBox Grid.Row="2"
+                                     x:Name="DescriptionTextBox"
+                                     Text="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     MinHeight="220"
+                                     FontFamily="{StaticResource MonoFont}"
+                                     VerticalContentAlignment="Top"/>
+                            <Border Grid.Row="2" Grid.Column="1"
+                                    Classes="card"
+                                    Padding="12"
+                                    MinHeight="220"
+                                    ClipToBounds="True">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Name="DescriptionPreviewPanel" Spacing="5"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+
+                        <StackPanel Grid.Row="2" Classes="field">
+                            <Grid Classes="field-header" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock Classes="label" Text="Changelog"/>
+                                    <TextBlock Classes="field-flag row-icon-blocker" Text="&#xE783;"
+                                               IsVisible="{Binding IsChangelogBlocker}"
+                                               ToolTip.Tip="See the issue above"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1"
+                                           Classes="hint"
+                                           Text="{Binding ChangelogCount}"
+                                           VerticalAlignment="Center"/>
+                                <Button Grid.Column="2"
+                                        Theme="{StaticResource ToolbarButton}"
+                                        Classes="link quiet"
+                                        Content="Copy"
+                                        ToolTip.Tip="Copy the changelog"
+                                        Click="OnCopyChangelogClick"/>
+                            </Grid>
+                            <TextBox x:Name="ChangelogTextBox"
+                                     Text="{Binding Changelog, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     Height="76"
+                                     VerticalContentAlignment="Top"
+                                     Watermark="What changed in this upload"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="3" Classes="field">
+                            <Grid Classes="field-header" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <TextBlock Classes="label" Text="Tags" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1"
+                                           Classes="hint"
+                                           Text="{Binding TagsSelectedCount}"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Tags}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel ItemWidth="128"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="vm:TagItem">
+                                        <CheckBox Content="{Binding Name}"
+                                                  IsChecked="{Binding IsChecked}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Right: which Workshop item, and its images. -->
+                    <StackPanel Grid.Column="1" Classes="form">
+                        <StackPanel Classes="field">
+                            <TextBlock Classes="label" Text="Workshop version"/>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <ComboBox ItemsSource="{Binding PublishProfiles}"
+                                          SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate DataType="vm:PublishProfileOption">
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Button Grid.Column="1"
+                                        Theme="{StaticResource SubtleButton}"
+                                        MinWidth="32"
+                                        Padding="8,5"
+                                        AutomationProperties.Name="Manage Workshop versions"
+                                        ToolTip.Tip="Manage Workshop versions">
+                                    <TextBlock Text="&#xE712;"
+                                               FontFamily="{StaticResource IconFont}"
+                                               FontSize="12"/>
+                                    <Button.Flyout>
+                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                            <MenuItem Header="New version…" Click="OnNewProfileClick"/>
+                                            <MenuItem Header="Duplicate…" Click="OnDuplicateProfileClick"/>
+                                            <MenuItem Header="Rename…" Click="OnRenameProfileClick"/>
+                                            <Separator/>
+                                            <MenuItem Header="Delete…"
+                                                      Click="OnDeleteProfileClick"
+                                                      IsEnabled="{Binding CanDeleteProfile}"
+                                                      ToolTip.Tip="{Binding DeleteProfileToolTip}"
+                                                      ToolTip.ShowOnDisabled="True"/>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                </Button>
+                            </Grid>
+                            <TextBlock Classes="hint" Text="{Binding SelectedProfileDetail}"/>
+                        </StackPanel>
+
+                        <StackPanel Classes="field">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="label" Text="Thumbnail"/>
+                                <TextBlock Classes="field-flag row-icon-warning" Text="&#xE7BA;"
+                                           IsVisible="{Binding IsThumbnailWarning}"
+                                           ToolTip.Tip="See the note above"/>
+                                <TextBlock Classes="field-flag row-icon-blocker" Text="&#xE783;"
+                                           IsVisible="{Binding IsThumbnailBlocker}"
+                                           ToolTip.Tip="See the issue above"/>
+                            </StackPanel>
+                            <Border Classes="card" Padding="8" Height="180">
+                                <Panel>
+                                    <Image Source="{Binding ThumbnailPreview}"
+                                           Stretch="Uniform"
+                                           IsVisible="{Binding ThumbnailPreview, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                    <TextBlock Classes="hint"
+                                               Text="{Binding ThumbnailPlaceholderText}"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding ThumbnailPreview, Converter={x:Static ObjectConverters.IsNull}}"/>
+                                </Panel>
+                            </Border>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBox Text="{Binding Thumbnail, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Watermark="Image path"/>
+                                <Button Grid.Column="1"
+                                        Theme="{StaticResource SubtleButton}"
+                                        Content="Browse…"
+                                        Click="OnBrowseThumbnail"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel Classes="field">
+                            <Grid Classes="field-header" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock Classes="label" Text="Gallery images"/>
+                                    <TextBlock Classes="field-flag row-icon-blocker" Text="&#xE783;"
+                                               IsVisible="{Binding IsGalleryBlocker}"
+                                               ToolTip.Tip="See the issue above"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1"
+                                           Classes="hint"
+                                           Text="{Binding PreviewImageCount}"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                            <ListBox x:Name="PreviewImagesListBox"
+                                     ItemsSource="{Binding PreviewImages}"
+                                     SelectedItem="{Binding SelectedPreviewImage, Mode=TwoWay}"
+                                     BorderThickness="1"
+                                     Height="164"
+                                     KeyDown="OnPreviewImagesKeyDown">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="vm:WorkshopPreviewImageItem">
+                                        <Grid ColumnDefinitions="48,*" ColumnSpacing="8">
+                                            <Border Width="48"
+                                                    Height="36"
+                                                    Background="{DynamicResource LayerFill}"
+                                                    CornerRadius="4"
+                                                    ClipToBounds="True">
+                                                <Image Source="{Binding Preview}"
+                                                       Stretch="UniformToFill"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding FileName}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Classes="hint"
+                                                           Text="{Binding Detail}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                <Button Theme="{StaticResource SubtleButton}"
+                                        Content="Add…"
+                                        HorizontalAlignment="Stretch"
+                                        Click="OnAddPreviewImages"/>
+                                <Button Grid.Column="1"
+                                        Theme="{StaticResource SubtleButton}"
+                                        Content="Remove"
+                                        IsEnabled="{Binding HasSelectedPreviewImage}"
+                                        Click="OnRemovePreviewImage"/>
+                                <Button Grid.Column="2"
+                                        Theme="{StaticResource SubtleButton}"
+                                        MinWidth="32"
+                                        Padding="8,5"
+                                        ToolTip.Tip="{Binding MediaFolderToolTip}"
+                                        AutomationProperties.Name="Open media folder"
+                                        ToolTip.ShowOnDisabled="True"
+                                        IsEnabled="{Binding HasWorkshopMediaFolder}"
+                                        Click="OnOpenMediaFolder">
+                                    <TextBlock Text="&#xE838;"
+                                               FontFamily="{StaticResource IconFont}"
+                                               FontSize="12"/>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </ScrollViewer>
+    </views:DialogShell>
+</Window>

@@ -1,0 +1,115 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:models="using:Blackbird.Models"
+        xmlns:views="using:Blackbird.Views"
+        x:Class="Blackbird.Views.SetupDoctorDialog"
+        x:DataType="vm:SetupDoctorViewModel"
+        WindowStartupLocation="CenterOwner"
+        Classes="dialog tool"
+        Title="Setup Doctor"
+        Width="640" Height="560"
+        MinWidth="520" MinHeight="460"
+        CanResize="True">
+
+    <views:DialogShell Title="Setup Doctor"
+                       Subtitle="Where Blackbird finds Black Ops III and the Mod Tools. Checks update as you type.">
+        <views:DialogShell.Status>
+            <Panel>
+                <TextBlock Classes="status" Text="{Binding StatusText}"
+                           IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNullOrEmpty}}"/>
+                <TextBlock Classes="error" Text="{Binding ErrorMessage}" ToolTip.Tip="{Binding ErrorDetail}"/>
+            </Panel>
+        </views:DialogShell.Status>
+        <views:DialogShell.Footer>
+            <StackPanel Classes="dialog-buttons">
+                <Button Click="OnSaveClick"
+                        AutomationProperties.Name="Save"
+                        IsDefault="True"
+                        IsEnabled="{Binding IsHealthy}"
+                        ToolTip.Tip="{Binding SaveBlockedReason}"
+                        ToolTip.ShowOnDisabled="True"
+                        Theme="{StaticResource AccentButton}">
+                    <Panel Classes="busy-label" Classes.busy="{Binding ShowBusy}">
+                        <TextBlock Text="Save" HorizontalAlignment="Center"/>
+                        <ProgressBar/>
+                    </Panel>
+                </Button>
+                <Button Content="Cancel"
+                        Click="OnCancelClick"
+                        IsCancel="True"
+                        IsEnabled="{Binding IsIdle}"
+                        Theme="{StaticResource SubtleButton}"/>
+            </StackPanel>
+        </views:DialogShell.Footer>
+
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Classes="form" Margin="0,0,0,16" IsEnabled="{Binding IsIdle}">
+                <StackPanel Classes="field">
+                    <TextBlock Classes="label" Text="Black Ops III folder"/>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox Name="GamePathBox" Text="{Binding GamePath, Mode=TwoWay}"
+                                 Watermark="Folder that contains BlackOps3.exe"/>
+                        <Button Grid.Column="1" Content="Browse…" Click="OnBrowseGameClick"
+                                Theme="{StaticResource SubtleButton}"/>
+                    </Grid>
+                </StackPanel>
+                <StackPanel Classes="field">
+                    <TextBlock Classes="label" Text="Mod Tools folder"/>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox Text="{Binding ToolsPath, Mode=TwoWay}"
+                                 Watermark="Usually the same as the Black Ops III folder"/>
+                        <Button Grid.Column="1" Content="Browse…" Click="OnBrowseToolsClick"
+                                Theme="{StaticResource SubtleButton}"/>
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
+
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                <TextBlock Classes="label" Text="Checks" VerticalAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Content="{Binding DetectLabel}"
+                        Click="OnDetectClick"
+                        IsEnabled="{Binding CanDetect}"
+                        MinWidth="112"
+                        Theme="{StaticResource SubtleButton}"
+                        ToolTip.Tip="Look in Steam's libraries and the TA_GAME_PATH / TA_TOOLS_PATH variables"/>
+            </Grid>
+
+            <Border Classes="card" Padding="4">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Checks}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="models:SetupCheck">
+                                <Grid ColumnDefinitions="28,*" Margin="8,8,16,8">
+                                    <Panel VerticalAlignment="Top" Margin="0,2,0,0">
+                                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                                   Classes="row-icon-ok"
+                                                   IsVisible="{Binding Passed}"
+                                                   ToolTip.Tip="{Binding StatusText}"/>
+                                        <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                                   Classes="row-icon-blocker"
+                                                   IsVisible="{Binding IsMissingRequired}"
+                                                   ToolTip.Tip="{Binding StatusText}"/>
+                                        <TextBlock Text="&#xE738;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                                   Classes="hint"
+                                                   IsVisible="{Binding IsMissingOptional}"
+                                                   ToolTip.Tip="{Binding StatusText}"/>
+                                    </Panel>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="{Binding Name}"/>
+                                        <TextBlock Classes="hint"
+                                                   Text="{Binding Detail}"
+                                                   TextWrapping="NoWrap"
+                                                   TextTrimming="PathSegmentEllipsis"
+                                                   ToolTip.Tip="{Binding Detail}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+        </DockPanel>
+    </views:DialogShell>
+</Window>

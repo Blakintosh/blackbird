@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Blackbird/Blackbird.csproj" />
+  <Project Path="Blackbird.Shots/Blackbird.Shots.csproj" />
+</Solution>

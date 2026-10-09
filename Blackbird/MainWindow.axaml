@@ -1,0 +1,928 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:models="using:Blackbird.Models"
+        xmlns:views="using:Blackbird.Views"
+        xmlns:services="using:Blackbird.Services"
+        mc:Ignorable="d" d:DesignWidth="1024" d:DesignHeight="768"
+        x:Class="Blackbird.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Blackbird"
+        Icon="avares://modlauncher/Assets/blackbird_64.png"
+        Width="1150" Height="640"
+        MinWidth="880" MinHeight="520"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="PreferSystemChrome"
+        ExtendClientAreaTitleBarHeightHint="32"
+        TransparencyLevelHint="Mica">
+
+    <DockPanel>
+        <!-- Title bar, on Mica. Menus on the left, pinned tools on the right, and the
+             system's own minimize/maximize/close in the reserved right column (which
+             keeps Snap Layouts on maximize). The whole strip takes a dropped .exe. -->
+        <Grid DockPanel.Dock="Top"
+              Name="TitleBar"
+              Height="32"
+              Background="{DynamicResource ChromeBackground}"
+              ColumnDefinitions="Auto,Auto,*,Auto,138"
+              DragDrop.AllowDrop="True">
+            <Image Grid.Column="0"
+                   Source="avares://modlauncher/Assets/blackbird_32.png"
+                   Width="16" Height="16"
+                   RenderOptions.BitmapInterpolationMode="HighQuality"
+                   Margin="14,0,6,0"
+                   VerticalAlignment="Center"
+                   IsHitTestVisible="False"/>
+
+            <Menu Grid.Column="1" Name="TitleMenu" Classes="titlebar" VerticalAlignment="Center">
+                <MenuItem Header="_File">
+                    <MenuItem Header="_New map or mod…" Command="{Binding NewItemCommand}" InputGesture="Ctrl+N"/>
+                    <MenuItem Header="_Command palette…" Click="OnCommandPaletteClick" InputGesture="Ctrl+K"/>
+                    <Separator/>
+                    <MenuItem Header="_Theme">
+                        <MenuItem Header="_Match Windows" ToggleType="Radio" GroupName="theme"
+                                  IsChecked="{Binding IsThemeSystem, Mode=OneWay}"
+                                  Command="{Binding SetThemeCommand}" CommandParameter="{x:Static services:ThemeChoice.System}"/>
+                        <Separator/>
+                        <MenuItem Header="_Graphite" ToggleType="Radio" GroupName="theme"
+                                  IsChecked="{Binding IsThemeGraphite, Mode=OneWay}"
+                                  Command="{Binding SetThemeCommand}" CommandParameter="{x:Static services:ThemeChoice.Graphite}"/>
+                        <MenuItem Header="_Slate" ToggleType="Radio" GroupName="theme"
+                                  IsChecked="{Binding IsThemeSlate, Mode=OneWay}"
+                                  Command="{Binding SetThemeCommand}" CommandParameter="{x:Static services:ThemeChoice.Slate}"/>
+                        <MenuItem Header="_Light" ToggleType="Radio" GroupName="theme"
+                                  IsChecked="{Binding IsThemeLight, Mode=OneWay}"
+                                  Command="{Binding SetThemeCommand}" CommandParameter="{x:Static services:ThemeChoice.Light}"/>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="E_xit" Click="OnExitClick" InputGesture="Alt+F4"/>
+                </MenuItem>
+                <MenuItem Header="_Tools">
+                    <MenuItem Header="_Export2Rust…" IsEnabled="{Binding IsExport2RustAvailable}" Click="OnExport2RustClick"
+                              ToolTip.Tip="{Binding Export2RustToolTip}" ToolTip.ShowOnDisabled="True"/>
+                    <MenuItem Header="_GSCode Library" Command="{Binding OpenGsCodeLibraryCommand}"/>
+                    <MenuItem Header="BO3 _Source Explorer" Command="{Binding OpenBo3SourceExplorerCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Setup _Doctor…" Click="OnSetupDoctorClick"/>
+                    <Separator/>
+                    <MenuItem Header="Open game _folder" Command="{Binding OpenGameRootCommand}"/>
+                    <MenuItem Header="Open _Mod Tools folder" Command="{Binding OpenToolsRootCommand}"/>
+                    <MenuItem Header="Open _logs folder" Command="{Binding OpenLogFolderCommand}"/>
+                </MenuItem>
+                <MenuItem Header="_Help">
+                    <!-- Updates: how the last check went, and Check now, which keeps the menu open and updates the line in
+                         place. Apex's Updates submenu (the Layout menu there) is its sibling; the copy is the shared
+                         Updater's. While there is an update the line names it and opens the title bar control's flyout. -->
+                    <MenuItem Name="UpdatesMenu" Header="_Updates">
+                        <MenuItem Name="UpdateStatusItem" Classes="update-status" MinWidth="200"
+                                  Header="{Binding Updates.MenuStatus}"
+                                  IsEnabled="{Binding Updates.IsShown}"
+                                  Click="OnUpdateStatusClick"
+                                  ToolTip.Tip="{Binding Updates.MenuStatusTip}" ToolTip.ShowOnDisabled="True">
+                            <MenuItem.Icon>
+                                <Panel>
+                                    <TextBlock Classes="update-glyph success" IsVisible="{Binding Updates.IsUpToDate}"/>
+                                    <TextBlock Classes="update-glyph warning" IsVisible="{Binding Updates.MenuShowsWarning}"/>
+                                    <TextBlock Classes="update-glyph" Classes.pending="{Binding Updates.IsPending}" IsVisible="{Binding Updates.MenuShowsArrow}"/>
+                                </Panel>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Name="CheckNowItem" Header="{Binding Updates.CheckNowText}"
+                                  Command="{Binding Updates.CheckNowCommand}" StaysOpenOnClick="True"
+                                  IsVisible="{Binding Updates.ShowsCheckNow}"/>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="_About Blackbird" Click="OnAboutClick"/>
+                </MenuItem>
+            </Menu>
+
+            <!-- Drag region -->
+            <Border Grid.Column="2" Name="TitleBarDrag" Background="Transparent"/>
+
+            <StackPanel Grid.Column="3"
+                        Orientation="Horizontal"
+                        Spacing="2"
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center">
+                <!-- Updates: shown only while there is an update for the user (downloading, ready, installing on close,
+                     installed, or failed to download or install). Checking and its outcome live in Help > Updates. -->
+                <Button Name="UpdateButton"
+                        Theme="{StaticResource ToolbarButton}"
+                        Classes="titlebar-tool"
+                        IsVisible="{Binding Updates.IsShown}"
+                        Margin="0,0,6,0"
+                        AutomationProperties.Name="{Binding Updates.ChipText}"
+                        ToolTip.Tip="{Binding Updates.Title}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Classes="update-glyph" Classes.pending="{Binding Updates.IsPending}" IsVisible="{Binding Updates.ShowsArrow}"/>
+                        <TextBlock Classes="update-glyph warning" IsVisible="{Binding Updates.IsFailed}"/>
+                        <TextBlock Text="{Binding Updates.ChipText}" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight" Closed="OnUpdateFlyoutClosed">
+                            <views:UpdatePanel DataContext="{Binding Updates}"/>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <!-- The one setup warning: shown while anything Setup Doctor checks is broken. -->
+                <Button Theme="{StaticResource ToolbarButton}"
+                        Classes="titlebar-tool"
+                        IsVisible="{Binding HasToolHealthIssues}"
+                        Click="OnSetupDoctorClick"
+                        Margin="0,0,6,0"
+                        AutomationProperties.Name="Setup needs attention. Open Setup Doctor"
+                        ToolTip.Tip="{Binding ToolHealthMessage}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                   Foreground="{DynamicResource WarningYellow}" VerticalAlignment="Center"/>
+                        <TextBlock Text="Setup Doctor" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Theme="{StaticResource ToolbarButton}"
+                        Classes="titlebar-tool"
+                        Command="{Binding OpenAssetEditorCommand}"
+                        AutomationProperties.Name="Asset Editor"
+                        ToolTip.Tip="{Binding AssetEditorToolTip}"
+                        ToolTip.ShowOnDisabled="True">
+                    <Panel>
+                        <Image Source="{Binding AssetEditorIcon}" Width="18" Height="18"
+                               IsVisible="{Binding AssetEditorIcon, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                        <TextBlock Text="&#xE74C;" FontFamily="{StaticResource IconFont}" FontSize="15"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding AssetEditorIcon, Converter={x:Static ObjectConverters.IsNull}}"/>
+                    </Panel>
+                </Button>
+                <Button Theme="{StaticResource ToolbarButton}"
+                        Classes="titlebar-tool"
+                        Command="{Binding OpenRadiantCommand}"
+                        AutomationProperties.Name="Radiant"
+                        ToolTip.Tip="{Binding RadiantToolTip}"
+                        ToolTip.ShowOnDisabled="True">
+                    <Panel>
+                        <Image Source="{Binding RadiantIcon}" Width="18" Height="18"
+                               IsVisible="{Binding RadiantIcon, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                        <TextBlock Text="&#xE809;" FontFamily="{StaticResource IconFont}" FontSize="15"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding RadiantIcon, Converter={x:Static ObjectConverters.IsNull}}"/>
+                    </Panel>
+                </Button>
+                <Button Theme="{StaticResource ToolbarButton}"
+                        Classes="titlebar-tool"
+                        Command="{Binding OpenApexCommand}"
+                        IsVisible="{Binding IsApexAvailable}"
+                        AutomationProperties.Name="Apex"
+                        ToolTip.Tip="Apex">
+                    <Panel>
+                        <Image Source="{Binding ApexIcon}" Width="18" Height="18"
+                               IsVisible="{Binding ApexIcon, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                        <TextBlock Text="&#xE74C;" FontFamily="{StaticResource IconFont}" FontSize="15"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding ApexIcon, Converter={x:Static ObjectConverters.IsNull}}"/>
+                    </Panel>
+                </Button>
+
+                <ItemsControl ItemsSource="{Binding CustomTools}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="2"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ToolShortcutViewModel">
+                            <Button Theme="{StaticResource ToolbarButton}"
+                                    Classes="titlebar-tool"
+                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).LaunchCustomToolCommand}"
+                                    CommandParameter="{Binding}"
+                                    AutomationProperties.Name="{Binding Name}"
+                                    ToolTip.Tip="{Binding Name}">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Rename…" Tag="{Binding}" Click="OnRenameCustomToolClick"/>
+                                        <MenuItem Header="Arguments…" Tag="{Binding}" Click="OnEditCustomToolArgumentsClick"/>
+                                        <Separator/>
+                                        <MenuItem Header="Remove" Tag="{Binding}" Click="OnRemoveCustomToolClick"/>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                                <Panel>
+                                    <Image Source="{Binding Icon}" Width="18" Height="18"
+                                           IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                    <TextBlock Text="&#xE74C;" FontFamily="{StaticResource IconFont}" FontSize="15"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNull}}"/>
+                                </Panel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button Theme="{StaticResource ToolbarButton}"
+                        Classes="titlebar-tool"
+                        Click="OnAddToolClick"
+                        AutomationProperties.Name="Add a tool"
+                        ToolTip.Tip="Add a tool. You can also drop an .exe here.">
+                    <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                               Foreground="{DynamicResource ForegroundDimmed}"/>
+                </Button>
+            </StackPanel>
+
+            <Border Grid.Column="1" Grid.ColumnSpan="3"
+                    Name="ToolbarDropOverlay"
+                    IsVisible="False"
+                    IsHitTestVisible="False"
+                    Background="{DynamicResource OverlayBackground}"
+                    BorderBrush="{DynamicResource AccentIndicator}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Margin="0,2">
+                <StackPanel Orientation="Horizontal" Spacing="8"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                               Foreground="{DynamicResource AccentIndicator}" VerticalAlignment="Center"/>
+                    <TextBlock Text="Drop to pin this program to the title bar" FontSize="12"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Command bar: which project, what to do with it, and how the game launches. -->
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource ChromeBackground}"
+                Padding="12,2,12,8">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding HasSelectedProject}">
+                    <Button Name="LaunchConfigButton"
+                            Theme="{StaticResource ToolbarButton}"
+                            Classes="dropdown"
+                            AutomationProperties.Name="Launch config"
+                            ToolTip.Tip="{Binding LaunchConfigToolTip}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="dropdown-label" Text="Launch config"/>
+                            <TextBlock Classes="dropdown-value" Text="{Binding LaunchConfigSummary}" MaxWidth="240"/>
+                            <TextBlock Classes="dropdown-caret" Text="&#xE70D;"/>
+                        </StackPanel>
+                        <Button.Flyout>
+                            <!-- Filled when it opens; the placeholder only keeps the menu from being empty. -->
+                            <MenuFlyout Placement="BottomEdgeAlignedRight" Opening="OnLaunchConfigMenuOpening">
+                                <MenuItem Header="Loading…" IsEnabled="False"/>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button Command="{Binding RunProjectCommand}"
+                            AutomationProperties.Name="Run"
+                            IsEnabled="{Binding CanRun}"
+                            Theme="{StaticResource SubtleButton}"
+                            Classes="cmdrow"
+                            ToolTip.Tip="{Binding RunToolTip}"
+                            ToolTip.ShowOnDisabled="True"
+                            Padding="12,5">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="Run" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Build split button. The label follows the build mode and reads
+                         "Cancel" while a build runs; the caret picks the mode. -->
+                    <Border CornerRadius="7" ClipToBounds="True" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Command="{Binding BuildOrCancelCommand}"
+                                    AutomationProperties.Name="{Binding BuildButtonText}"
+                                    IsEnabled="{Binding CanStartBuild}"
+                                    ToolTip.Tip="{Binding BuildToolTip}"
+                                    ToolTip.ShowOnDisabled="True"
+                                    Theme="{StaticResource AccentButton}"
+                                    MinWidth="96" Height="32"
+                                    Padding="14,0" CornerRadius="7,0,0,7">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding BuildModeIcon}" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding !IsBuildRunning}"/>
+                                    <TextBlock Text="{Binding BuildButtonText}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                            <!-- Hidden during a build: a greyed caret beside Cancel reads as a dead control. -->
+                            <Button Theme="{StaticResource AccentButton}"
+                                    IsVisible="{Binding CanEditBuildOptions}"
+                                    Padding="8,0" CornerRadius="0,7,7,0"
+                                    Margin="1,0,0,0"
+                                    VerticalAlignment="Stretch"
+                                    AutomationProperties.Name="Build mode"
+                                    ToolTip.Tip="Build mode">
+                                <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9"
+                                           VerticalAlignment="Center"/>
+                                <Button.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                        <MenuItem Header="Build" Command="{Binding SetBuildModeCommand}" CommandParameter="1">
+                                            <MenuItem.Icon>
+                                                <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                           IsVisible="{Binding IsBuildOnlyMode}"/>
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="Build &amp; run" Command="{Binding SetBuildModeCommand}" CommandParameter="0">
+                                            <MenuItem.Icon>
+                                                <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                           IsVisible="{Binding IsBuildAndRunMode}"/>
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="Build &amp; run (ignore errors)" Command="{Binding SetBuildModeCommand}" CommandParameter="2">
+                                            <MenuItem.Icon>
+                                                <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                           IsVisible="{Binding IsBuildAndRunIgnoreErrorsMode}"/>
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Button x:Name="ProjectPickerButton"
+                            Theme="{StaticResource SubtleButton}"
+                            Classes="picker"
+                            AutomationProperties.Name="Project. Search and switch"
+                            MinWidth="280"
+                            MaxWidth="380"
+                            Padding="10,3"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="Switch project (Ctrl+P)">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="8"
+                                        VerticalAlignment="Center"
+                                        IsVisible="{Binding HasSelectedProject}">
+                                <TextBlock Text="{Binding SelectedProject.DisplayName}"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center"/>
+                                <Border Classes="type-badge">
+                                    <TextBlock Text="{Binding SelectedProject.TypeShortLabel}"/>
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="Projects"
+                                       Foreground="{DynamicResource ForegroundDimmed}"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding !HasSelectedProject}"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="&#xE70D;"
+                                       FontFamily="{StaticResource IconFont}"
+                                       FontSize="10"
+                                       Foreground="{DynamicResource ForegroundDimmed}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedLeft" Opened="OnProjectPickerOpened">
+                                <Border Width="430"
+                                        MaxHeight="520"
+                                        BorderBrush="{DynamicResource BorderSubtle}"
+                                        BorderThickness="1"
+                                        Background="{DynamicResource SidebarBackground}"
+                                        CornerRadius="6"
+                                        Padding="10">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                            <TextBox Name="ProjectSearchBox"
+                                                     Text="{Binding ProjectSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Watermark="Search projects"
+                                                     AutomationProperties.Name="Search projects"
+                                                     KeyDown="OnProjectSearchKeyDown"/>
+                                            <Button Grid.Column="1"
+                                                    Theme="{StaticResource ToolbarButton}"
+                                                    MinWidth="32"
+                                                    AutomationProperties.Name="Filter projects"
+                                                    ToolTip.Tip="Filter projects">
+                                                <TextBlock Text="&#xE71C;" FontFamily="{StaticResource IconFont}" FontSize="13"/>
+                                                <Button.Flyout>
+                                                    <MenuFlyout Placement="BottomEdgeAlignedRight" Opening="OnProjectFilterMenuOpening">
+                                                        <MenuItem Header="Loading…" IsEnabled="False"/>
+                                                    </MenuFlyout>
+                                                </Button.Flyout>
+                                            </Button>
+                                        </Grid>
+
+                                        <TextBlock DockPanel.Dock="Top"
+                                                   Classes="hint"
+                                                   Margin="2,8,0,0"
+                                                   Text="{Binding SwitchProjectBlockedReason}"
+                                                   IsVisible="{Binding !CanSwitchProject}"/>
+
+                                        <StackPanel DockPanel.Dock="Top"
+                                                    Orientation="Horizontal"
+                                                    Margin="0,8,0,0"
+                                                    IsVisible="{Binding HasActiveProjectFilter}">
+                                            <Button Classes="chip active"
+                                                    Command="{Binding ClearProjectFilterCommand}"
+                                                    AutomationProperties.Name="Clear the filter"
+                                                    ToolTip.Tip="Show all projects">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="{Binding ActiveProjectFilterLabel}" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="9"
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+
+                                        <Panel Margin="0,8,0,0">
+                                            <TextBlock Text="{Binding PickerEmptyText}"
+                                                       IsVisible="{Binding !HasVisibleProjects}"
+                                                       Foreground="{DynamicResource ForegroundDimmed}"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="12,24"
+                                                       TextWrapping="Wrap"/>
+                                            <ListBox Name="ProjectPickerList"
+                                                     ItemsSource="{Binding Projects}"
+                                                     IsVisible="{Binding HasVisibleProjects}"
+                                                     SelectedItem="{Binding PickerSelection, Mode=TwoWay}"
+                                                     Tapped="OnProjectPickerTapped"
+                                                     KeyDown="OnProjectPickerListKeyDown"
+                                                     Background="{DynamicResource LayerFill}"
+                                                     BorderBrush="{DynamicResource BorderSubtle}"
+                                                     MaxHeight="430">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate DataType="models:ProjectItem">
+                                                        <Grid>
+                                                            <Button Theme="{StaticResource ToolbarButton}"
+                                                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ToggleProjectGroupCommand}"
+                                                                    CommandParameter="{Binding GroupName}"
+                                                                    AutomationProperties.Name="{Binding GroupName}"
+                                                                    IsVisible="{Binding IsGroupHeader}"
+                                                                    Padding="0,2,4,2"
+                                                                    MinHeight="28"
+                                                                    HorizontalAlignment="Stretch"
+                                                                    HorizontalContentAlignment="Stretch"
+                                                                    ToolTip.Tip="Right-click to rename this category">
+                                                                <Button.ContextMenu>
+                                                                    <ContextMenu Opening="OnCategoryMenuOpening">
+                                                                        <MenuItem Header="Rename category…" Tag="{Binding GroupName}" Click="OnRenameCategoryClick"/>
+                                                                        <MenuItem Name="ResetCategoryMenuItem"
+                                                                                  Header="Move projects back to Maps and Mods"
+                                                                                  Tag="{Binding GroupName}"
+                                                                                  Click="OnResetCategoryClick"/>
+                                                                    </ContextMenu>
+                                                                </Button.ContextMenu>
+                                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                                                                    <TextBlock Text="{Binding GroupCollapseIcon}"
+                                                                               FontFamily="{StaticResource IconFont}"
+                                                                               FontSize="9"
+                                                                               Foreground="{DynamicResource ForegroundDimmed}"
+                                                                               VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="1"
+                                                                               Text="{Binding GroupName}"
+                                                                               FontWeight="SemiBold"
+                                                                               FontSize="12"
+                                                                               Foreground="{DynamicResource ForegroundDimmed}"
+                                                                               VerticalAlignment="Center"/>
+                                                                </Grid>
+                                                            </Button>
+                                                            <StackPanel IsVisible="{Binding !IsGroupHeader}" Spacing="1">
+                                                                <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="6">
+                                                                    <TextBlock Text="{Binding DisplayName}"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="1"
+                                                                               Text="&#xE735;"
+                                                                               FontFamily="{StaticResource IconFont}"
+                                                                               FontSize="11"
+                                                                               Foreground="{DynamicResource WarningYellow}"
+                                                                               VerticalAlignment="Center"
+                                                                               IsVisible="{Binding IsFavorite}"
+                                                                               ToolTip.Tip="Favorite"/>
+                                                                    <Border Grid.Column="3" Classes="type-badge">
+                                                                        <TextBlock Text="{Binding TypeShortLabel}"/>
+                                                                    </Border>
+                                                                </Grid>
+                                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                    <TextBlock Text="{Binding PickerDetail}"
+                                                                               FontSize="12"
+                                                                               Foreground="{DynamicResource ForegroundTertiary}"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="&#xE70B;"
+                                                                               FontFamily="{StaticResource IconFont}"
+                                                                               FontSize="11"
+                                                                               Foreground="{DynamicResource ForegroundTertiary}"
+                                                                               VerticalAlignment="Center"
+                                                                               Margin="0,1,0,0"
+                                                                               IsVisible="{Binding HasNotes}"
+                                                                               ToolTip.Tip="{Binding Notes}"/>
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                        </Panel>
+                                    </DockPanel>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <!-- Everything else about the project: edit, open, Workshop, copy, delete. -->
+                    <Button Theme="{StaticResource ToolbarButton}"
+                            IsVisible="{Binding HasSelectedProject}"
+                            MinWidth="32"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="Project actions"
+                            ToolTip.Tip="Project actions">
+                        <TextBlock Text="&#xE712;" FontFamily="{StaticResource IconFont}" FontSize="14"/>
+                        <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedLeft" Opening="OnProjectActionsMenuOpening">
+                                <MenuItem Header="Project info…" Click="OnProjectDetailsClick"/>
+
+                                <MenuItem Header="Duplicate…" Click="OnDuplicateProjectClick"
+                                          IsEnabled="{Binding CanModifyProject}"
+                                          ToolTip.Tip="{Binding ModifyProjectBlockedReason}" ToolTip.ShowOnDisabled="True"/>
+                                <MenuItem Header="Analyze…" Click="OnAnalyzeProjectClick"/>
+                                <MenuItem Header="{Binding FavoriteActionLabel}" Command="{Binding ToggleFavoriteCommand}"/>
+                                <Separator/>
+                                <MenuItem Header="Open">
+                                    <MenuItem Header="Project folder" Command="{Binding OpenFolderCommand}"/>
+                                    <MenuItem Header="Zone file" Command="{Binding EditZoneFileCommand}"
+                                              IsEnabled="{Binding HasZoneFile}"
+                                              ToolTip.Tip="The zone file isn't there." ToolTip.ShowOnDisabled="True"/>
+                                    <MenuItem Header="Zone source folder" Command="{Binding OpenZoneSourceFolderCommand}"
+                                              IsEnabled="{Binding HasZoneSourceFolder}"
+                                              ToolTip.Tip="This project has no zone_source folder." ToolTip.ShowOnDisabled="True"/>
+                                    <MenuItem Header="Map source file" Command="{Binding EditMapSourceFileCommand}"
+                                              IsVisible="{Binding IsMapSelected}" IsEnabled="{Binding HasMapSourceFile}"
+                                              ToolTip.Tip="The map's .map file isn't in map_source." ToolTip.ShowOnDisabled="True"/>
+                                    <MenuItem Header="Map source folder" Command="{Binding OpenMapSourceFolderCommand}"
+                                              IsVisible="{Binding IsMapSelected}" IsEnabled="{Binding HasMapSourceFolder}"
+                                              ToolTip.Tip="The map's map_source folder isn't there." ToolTip.ShowOnDisabled="True"/>
+                                    <MenuItem Header="Sound zone config (SZC)" Command="{Binding EditSzcFileCommand}"
+                                              IsVisible="{Binding IsMapSelected}" IsEnabled="{Binding HasSzcFile}"
+                                              ToolTip.Tip="The map has no .szc file in sound\zoneconfig." ToolTip.ShowOnDisabled="True"/>
+                                    <Separator/>
+                                    <MenuItem Header="Scripts in VS Code" Command="{Binding OpenScriptsInVsCodeCommand}"
+                                              IsEnabled="{Binding CanOpenScriptsInVsCode}"
+                                              ToolTip.Tip="{Binding ScriptsInVsCodeBlockedReason}" ToolTip.ShowOnDisabled="True"/>
+                                    <MenuItem Header="LUI in VS Code" Command="{Binding OpenLuiInVsCodeCommand}"
+                                              IsEnabled="{Binding CanOpenLuiInVsCode}"
+                                              ToolTip.Tip="{Binding LuiInVsCodeBlockedReason}" ToolTip.ShowOnDisabled="True"/>
+                                </MenuItem>
+                                <MenuItem Header="Workshop">
+                                    <MenuItem Header="Publish to Workshop…" Command="{Binding PublishCommand}" InputGesture="Ctrl+Shift+U"/>
+                                    <Separator/>
+                                    <MenuItem Header="Open Workshop page" Command="{Binding OpenWorkshopPageCommand}"
+                                              IsEnabled="{Binding CanOpenWorkshopPage}"
+                                              ToolTip.Tip="Not on the Workshop yet. Publish it first." ToolTip.ShowOnDisabled="True"/>
+                                    <MenuItem Header="Copy Workshop URL" Click="OnCopyWorkshopUrlClick"
+                                              IsEnabled="{Binding CanOpenWorkshopPage}"
+                                              ToolTip.Tip="Not on the Workshop yet. Publish it first." ToolTip.ShowOnDisabled="True"/>
+                                    <Separator/>
+                                    <MenuItem Header="Open workshop.json" Command="{Binding EditWorkshopJsonFileCommand}"
+                                              IsEnabled="{Binding HasWorkshopJson}"
+                                              ToolTip.Tip="There's no workshop.json yet. Publishing creates it." ToolTip.ShowOnDisabled="True"/>
+                                    <MenuItem Header="Open Workshop content folder" Command="{Binding OpenWorkshopContentFolderCommand}"
+                                              IsEnabled="{Binding HasContentFolder}"
+                                              ToolTip.Tip="There's no zone folder yet. Build the project first." ToolTip.ShowOnDisabled="True"/>
+                                    <Separator/>
+                                    <MenuItem Header="Clean XPaks" Click="OnCleanXPaksClick"
+                                              IsEnabled="{Binding CanModifyProject}"
+                                              ToolTip.Tip="{Binding ModifyProjectBlockedReason}" ToolTip.ShowOnDisabled="True"/>
+                                </MenuItem>
+                                <MenuItem Header="Copy">
+                                    <MenuItem Header="Run command" Click="OnCopyRunCommandClick"
+                                              IsEnabled="{Binding CanCopyRunCommand}"
+                                              ToolTip.Tip="{Binding RunToolTip}" ToolTip.ShowOnDisabled="True"/>
+                                    <MenuItem Header="Build commands" Click="OnCopyBuildCommandsClick"/>
+                                    <MenuItem Header="Project name" Click="OnCopyProjectNameClick"/>
+                                    <MenuItem Header="Folder path" Click="OnCopyProjectFolderClick"/>
+                                </MenuItem>
+                                <Separator/>
+                                <MenuItem Header="Delete project" Click="OnDeleteProjectClick"
+                                          IsEnabled="{Binding CanModifyProject}"
+                                          ToolTip.Tip="{Binding ModifyProjectBlockedReason}" ToolTip.ShowOnDisabled="True"/>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Content card: build steps, the log and the status bar on one raised layer
+             over Mica, like a Windows 11 app's content area. -->
+        <Border Margin="8,0,8,8"
+                Background="{DynamicResource LayerFill}"
+                BorderBrush="{DynamicResource CardStroke}"
+                BorderThickness="1"
+                CornerRadius="10"
+                ClipToBounds="True">
+            <DockPanel>
+                <!-- Build steps: one row for maps and mods; the steps differ, the rest is shared. -->
+                <Border DockPanel.Dock="Top"
+                        IsVisible="{Binding HasSelectedProject}"
+                        BorderBrush="{DynamicResource DividerStroke}"
+                        BorderThickness="0,0,0,1"
+                        Padding="12,11">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right"
+                                Name="BuildPresetButton"
+                                Theme="{StaticResource ToolbarButton}"
+                                Classes="dropdown"
+                                Margin="12,0,0,0"
+                                IsEnabled="{Binding CanEditBuildOptions}"
+                                AutomationProperties.Name="Build preset"
+                                ToolTip.Tip="Build preset: which steps run"
+                                ToolTip.ShowOnDisabled="True">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="dropdown-label" Text="Build preset"/>
+                                <TextBlock Classes="dropdown-value" Text="{Binding BuildPresetLabel}" MaxWidth="160"/>
+                                <TextBlock Classes="dropdown-caret" Text="&#xE70D;"/>
+                            </StackPanel>
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight" Opening="OnBuildPresetMenuOpening">
+                                    <MenuItem Header="Loading…" IsEnabled="False"/>
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+
+                        <StackPanel DockPanel.Dock="Left"
+                                    Orientation="Horizontal"
+                                    Spacing="8"
+                                    VerticalAlignment="Center"
+                                    IsEnabled="{Binding CanEditBuildOptions}">
+                            <!-- Map steps -->
+                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsMapSelected}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton Classes="build-step split-main"
+                                                  IsChecked="{Binding IsCompileChecked}"
+                                                  AutomationProperties.Name="Compile"
+                                                  ToolTip.Tip="Compile map geometry">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Classes="step-icon" Text="&#xEA3C;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="Compile" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </ToggleButton>
+                                    <Button Classes="build-step-mode-button" Classes.on="{Binding IsCompileChecked}"
+                                            AutomationProperties.Name="Compile mode"
+                                            ToolTip.Tip="Compile mode">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <TextBlock Text="{Binding CompileModeLabel}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="8"
+                                                       VerticalAlignment="Center" Margin="1,1,0,0"/>
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                                <MenuItem Header="Ents only" Command="{Binding SetCompileModeCommand}" CommandParameter="0">
+                                                    <MenuItem.Icon>
+                                                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                                   IsVisible="{Binding IsCompileEntsMode}"/>
+                                                    </MenuItem.Icon>
+                                                </MenuItem>
+                                                <MenuItem Header="Full compile" Command="{Binding SetCompileModeCommand}" CommandParameter="1">
+                                                    <MenuItem.Icon>
+                                                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                                   IsVisible="{Binding IsCompileFullMode}"/>
+                                                    </MenuItem.Icon>
+                                                </MenuItem>
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton Classes="build-step split-main"
+                                                  IsChecked="{Binding IsLightChecked}"
+                                                  AutomationProperties.Name="Light"
+                                                  ToolTip.Tip="Light the map">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Classes="step-icon" Text="&#xE793;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="Light" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </ToggleButton>
+                                    <Button Classes="build-step-mode-button" Classes.on="{Binding IsLightChecked}"
+                                            AutomationProperties.Name="Light quality"
+                                            ToolTip.Tip="Light quality">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <TextBlock Text="{Binding LightQualityLabel}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="8"
+                                                       VerticalAlignment="Center" Margin="1,1,0,0"/>
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                                <MenuItem Header="Low quality" Command="{Binding SetLightQualityCommand}" CommandParameter="0">
+                                                    <MenuItem.Icon>
+                                                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                                   IsVisible="{Binding IsLightLowQuality}"/>
+                                                    </MenuItem.Icon>
+                                                </MenuItem>
+                                                <MenuItem Header="Medium quality" Command="{Binding SetLightQualityCommand}" CommandParameter="1">
+                                                    <MenuItem.Icon>
+                                                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                                   IsVisible="{Binding IsLightMediumQuality}"/>
+                                                    </MenuItem.Icon>
+                                                </MenuItem>
+                                                <MenuItem Header="High quality" Command="{Binding SetLightQualityCommand}" CommandParameter="2">
+                                                    <MenuItem.Icon>
+                                                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                                   IsVisible="{Binding IsLightHighQuality}"/>
+                                                    </MenuItem.Icon>
+                                                </MenuItem>
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Mod steps -->
+                            <Button Theme="{StaticResource SubtleButton}"
+                                    IsVisible="{Binding IsModSelected}"
+                                    Padding="10,5"
+                                    AutomationProperties.Name="Zones to build"
+                                    ToolTip.Tip="Zones to build">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="Zones" FontSize="12" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource ForegroundDimmed}"/>
+                                    <TextBlock Text="{Binding ZoneSummary}" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="8"
+                                               VerticalAlignment="Center" Margin="2,1,0,0"/>
+                                </StackPanel>
+                                <Button.Flyout>
+                                    <Flyout Placement="BottomEdgeAlignedLeft">
+                                        <ItemsControl ItemsSource="{Binding SelectedProject.ZoneFiles}" Margin="4">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="models:ModZoneFile">
+                                                    <CheckBox Content="{Binding ZoneName}" IsChecked="{Binding IsChecked}" Margin="0,2"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+
+                            <ToggleButton Classes="build-step"
+                                          IsChecked="{Binding IsLinkChecked}"
+                                          AutomationProperties.Name="Link"
+                                          ToolTip.Tip="{Binding LinkStepToolTip}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Classes="step-icon" Text="&#xE71B;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="Link" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </ToggleButton>
+                        </StackPanel>
+
+                        <!-- Why Build is off, when the steps are the reason. Setup problems
+                             show once, in the title bar. -->
+                        <TextBlock Text="{Binding BuildValidationMessage}"
+                                   IsVisible="{Binding HasBuildValidationMessage}"
+                                   ToolTip.Tip="{Binding BuildValidationMessage}"
+                                   Foreground="{DynamicResource ErrorRed}"
+                                   FontSize="12"
+                                   Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </DockPanel>
+                </Border>
+
+                <!-- Status bar: one line of state, a thin bar while building, the running
+                     game with its Close, and the last build's time and duration. -->
+                <Panel DockPanel.Dock="Bottom">
+                    <Border Name="StatusBar"
+                            BorderBrush="{DynamicResource DividerStroke}"
+                            BorderThickness="0,1,0,0"
+                            CornerRadius="0,0,9,9"
+                            MinHeight="34"
+                            Padding="12,4">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right"
+                                       Text="{Binding LastBuildSummary}"
+                                       VerticalAlignment="Center"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource ForegroundTertiary}"
+                                       Margin="12,0,0,0"/>
+
+                            <Border DockPanel.Dock="Left"
+                                    IsVisible="{Binding IsGameRunning}"
+                                    Background="{DynamicResource ControlFill}"
+                                    BorderBrush="{DynamicResource CardStroke}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="10,0,2,0"
+                                    Margin="0,0,10,0"
+                                    VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="7" Height="7"
+                                             Fill="{DynamicResource SuccessGreen}"
+                                             VerticalAlignment="Center"/>
+                                    <TextBlock Text="Game running"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               ToolTip.Tip="{Binding GameProcessId, StringFormat='BlackOps3.exe, process ID {0}'}"/>
+                                    <Button Content="{Binding CloseGameText}"
+                                            Command="{Binding StopGameCommand}"
+                                            IsEnabled="{Binding CanStopGame}"
+                                            Theme="{StaticResource ToolbarButton}"
+                                            FontSize="12"
+                                            MinHeight="24"
+                                            CornerRadius="10"
+                                            Padding="8,0"
+                                            VerticalAlignment="Center"
+                                            AutomationProperties.Name="Close Black Ops III"
+                                            ToolTip.Tip="Close Black Ops III"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- The outcome rides on a small glyph; the bar itself stays neutral. -->
+                            <TextBlock DockPanel.Dock="Left"
+                                       Classes="status-glyph"
+                                       Classes.error="{Binding StatusKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=error}"
+                                       Classes.warning="{Binding StatusKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=warning}"
+                                       Classes.success="{Binding StatusKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=success}"
+                                       IsVisible="{Binding StatusKind, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                            <TextBlock Text="{Binding StatusLine}"
+                                       VerticalAlignment="Center"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource ForegroundDimmed}"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </DockPanel>
+                    </Border>
+                    <ProgressBar VerticalAlignment="Top"
+                                 Height="2" MinHeight="2"
+                                 Margin="1,0"
+                                 CornerRadius="0"
+                                 Background="Transparent"
+                                 Foreground="{DynamicResource AccentIndicator}"
+                                 IsVisible="{Binding IsBuildRunning}"
+                                 IsIndeterminate="{Binding IsBuildRunning}"/>
+                </Panel>
+
+                <Grid>
+                    <!-- No project: one line of copy and one action, by state. -->
+                    <StackPanel IsVisible="{Binding !HasSelectedProject}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="14"
+                                MaxWidth="560"
+                                Margin="32">
+                        <Border Width="96" Height="96"
+                                CornerRadius="48"
+                                Background="{DynamicResource ControlFill}"
+                                BorderBrush="{DynamicResource CardStroke}"
+                                BorderThickness="1"
+                                HorizontalAlignment="Center"
+                                Margin="0,0,0,6">
+                            <Image Source="avares://modlauncher/Assets/blackbird_64.png"
+                                   Width="52" Height="52"
+                                   RenderOptions.BitmapInterpolationMode="HighQuality"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="{Binding EmptyStateTitle}"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"/>
+                        <TextBlock Text="{Binding EmptyStateMessage}"
+                                   Foreground="{DynamicResource ForegroundDimmed}"
+                                   FontSize="14"
+                                   LineHeight="20"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"/>
+                        <!-- The row keeps its height while scanning so the copy above doesn't jump. -->
+                        <Panel MinHeight="32" Margin="0,8,0,0" HorizontalAlignment="Center">
+                            <Button Content="Find Black Ops III…"
+                                    Click="OnFindGameClick"
+                                    IsVisible="{Binding HasSetupIssues}"
+                                    Theme="{StaticResource AccentButton}"
+                                    Padding="16,5"/>
+                            <Button Content="Choose a project"
+                                    Click="OnChooseProjectClick"
+                                    IsVisible="{Binding ShowChooseProjectAction}"
+                                    Theme="{StaticResource AccentButton}"
+                                    ToolTip.Tip="Ctrl+P"
+                                    Padding="16,5"/>
+                            <Button Content="New map or mod…"
+
+                                    Command="{Binding NewItemCommand}"
+                                    IsVisible="{Binding ShowNewProjectAction}"
+                                    Theme="{StaticResource AccentButton}"
+                                    ToolTip.Tip="Ctrl+N"
+                                    Padding="16,5"/>
+                        </Panel>
+                    </StackPanel>
+
+                    <views:ColoredLogView Name="BuildLogView"
+                                          IsVisible="{Binding HasSelectedProject}"
+                                          Log="{Binding Output}"
+                                          CanClearLog="{Binding CanClearLog}"/>
+                </Grid>
+            </DockPanel>
+        </Border>
+    </DockPanel>
+</Window>

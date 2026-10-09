@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:views="using:Blackbird.Views"
+        x:Class="Blackbird.Views.DuplicateProjectDialog"
+        x:DataType="vm:DuplicateProjectDialogViewModel"
+        WindowStartupLocation="CenterOwner"
+        Classes="dialog"
+        Title="Duplicate project"
+        Width="480" SizeToContent="Height"
+        CanResize="False">
+
+    <views:DialogShell Title="{Binding SourceDisplayName, StringFormat='Duplicate {0}'}"
+                       Subtitle="{Binding Subtitle}">
+        <views:DialogShell.Status>
+            <TextBlock Classes="error" Text="{Binding ErrorMessage}" ToolTip.Tip="{Binding ErrorDetail}"/>
+        </views:DialogShell.Status>
+        <views:DialogShell.Footer>
+            <StackPanel Classes="dialog-buttons">
+                <Button Click="OnDuplicateClick" IsDefault="True" AutomationProperties.Name="Duplicate"
+                        Theme="{StaticResource AccentButton}">
+                    <Panel Classes="busy-label" Classes.busy="{Binding ShowBusy}">
+                        <TextBlock Text="Duplicate" HorizontalAlignment="Center"/>
+                        <ProgressBar/>
+                    </Panel>
+                </Button>
+                <Button Content="Cancel" IsCancel="True" IsEnabled="{Binding IsIdle}"
+                        Click="OnCancelClick"
+                        Theme="{StaticResource SubtleButton}"/>
+            </StackPanel>
+        </views:DialogShell.Footer>
+
+        <StackPanel Classes="form" IsEnabled="{Binding IsIdle}">
+            <StackPanel Classes="field">
+                <TextBlock Classes="label" Text="New name"/>
+                <TextBox Name="NameBox"
+                         Text="{Binding NewName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         MaxLength="64"
+                         LostFocus="OnNameLostFocus"/>
+                <Grid Classes="field-message">
+                    <TextBlock Classes="field-error" Text="{Binding NameError}"/>
+                </Grid>
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <StackPanel Classes="field">
+                    <TextBlock Classes="label" Text="Display name"/>
+                    <TextBox Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Watermark="{Binding NewName}"
+                             MaxLength="80"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Classes="field">
+                    <TextBlock Classes="label" Text="Category"/>
+                    <AutoCompleteBox ItemsSource="{Binding CategorySuggestions}"
+                                     Text="{Binding Category, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Watermark="{Binding DefaultCategory}"
+                                     MaxLength="40"
+                                     MinimumPrefixLength="0"/>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </views:DialogShell>
+</Window>

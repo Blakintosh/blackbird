@@ -1,0 +1,847 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:Blackbird.Views">
+
+    <!--
+        Windows 11 (Fluent 2) structure for every theme: geometry, type, control themes and
+        the shared styles. Colours live in Palette.axaml, one dictionary per theme over the same
+        keys, and are read here with {DynamicResource} so a theme switch repaints live.
+    -->
+
+    <Styles.Resources>
+        <!-- ===== Geometry and type ===== -->
+        <CornerRadius x:Key="ControlCornerRadius">7</CornerRadius>
+        <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+        <!-- Geist for the interface and IBM Plex Mono for build output and names, as in Apex (both OFL, in Assets/Fonts). -->
+        <FontFamily x:Key="ContentControlThemeFontFamily">avares://modlauncher/Assets/Fonts#Geist, Segoe UI Variable Text, Segoe UI</FontFamily>
+        <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+        <FontFamily x:Key="MonoFont">avares://modlauncher/Assets/Fonts#IBM Plex Mono, Cascadia Mono, Consolas</FontFamily>
+
+        <!-- ===== Button ControlThemes ===== -->
+        <!-- Primary action. -->
+        <ControlTheme x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="7"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPointerOver}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBorderBrushPointerOver}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundPointerOver}"/>
+            </Style>
+            <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPressed}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBorderBrushPressed}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundPressed}"/>
+            </Style>
+            <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundDisabled}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBorderBrushDisabled}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundDisabled}"/>
+            </Style>
+        </ControlTheme>
+
+        <!-- Secondary action: the Windows 11 standard button. The Fluent Button
+             theme already reads the ButtonBackground*/ButtonBorderBrush* keys above. -->
+        <ControlTheme x:Key="SubtleButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="CornerRadius" Value="7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </ControlTheme>
+
+        <!-- Destructive action (delete, discard). Never IsDefault: Enter must not
+             reach it by reflex. Used in place of AccentButton, never beside it. -->
+        <ControlTheme x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{DynamicResource DangerFill}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnDanger}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="7"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource DangerFillHover}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBorderBrushPointerOver}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextOnDanger}"/>
+            </Style>
+            <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource DangerFillPressed}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBorderBrushPressed}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextOnDangerPressed}"/>
+            </Style>
+            <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundDisabled}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBorderBrushDisabled}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundDisabled}"/>
+            </Style>
+        </ControlTheme>
+
+        <!-- The one dialog anatomy (see Views/DialogShell.cs): a 32px drag strip under
+             the system caption buttons, a 20px header, the body at 24px side padding,
+             and a footer band with a top divider, status on the left and buttons on
+             the right. -->
+        <ControlTheme x:Key="{x:Type views:DialogShell}" TargetType="views:DialogShell">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <DockPanel>
+                        <Border Name="PART_DragBar"
+                                DockPanel.Dock="Top"
+                                Height="32"
+                                Margin="0,0,138,0"
+                                Background="Transparent"/>
+                        <Border DockPanel.Dock="Bottom"
+                                Background="{DynamicResource LayerFill}"
+                                BorderBrush="{DynamicResource DividerStroke}"
+                                BorderThickness="0,1,0,0"
+                                Padding="24,16">
+                            <DockPanel>
+                                <ContentPresenter DockPanel.Dock="Right"
+                                                  Margin="16,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Content="{TemplateBinding Footer}"/>
+                                <ContentPresenter VerticalAlignment="Center"
+                                                  Content="{TemplateBinding Status}"/>
+                            </DockPanel>
+                        </Border>
+                        <StackPanel DockPanel.Dock="Top"
+                                    Margin="24,4,24,0"
+                                    Spacing="4"
+                                    IsVisible="{TemplateBinding Title, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock Text="{TemplateBinding Title}"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="{TemplateBinding Subtitle}"
+                                       Foreground="{DynamicResource ForegroundDimmed}"
+                                       TextWrapping="Wrap"
+                                       IsVisible="{TemplateBinding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                        </StackPanel>
+                        <ContentPresenter Name="PART_ContentPresenter"
+                                          Margin="{TemplateBinding Padding}"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="Stretch"
+                                          VerticalContentAlignment="Stretch"/>
+                    </DockPanel>
+                </ControlTemplate>
+            </Setter>
+            <Setter Property="Padding" Value="24,20,24,24"/>
+        </ControlTheme>
+
+        <!-- Icon/ghost button: no fill or edge until hovered (toolbars, inline actions). -->
+        <ControlTheme x:Key="ToolbarButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#00FFFFFF"/>
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+            <Setter Property="BorderBrush" Value="#00FFFFFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource TreeItemHover}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+            </Style>
+            <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource SubtlePressed}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+            </Style>
+            <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="#00FFFFFF"/>
+                <Setter Property="Opacity" Value="0.4"/>
+            </Style>
+        </ControlTheme>
+    </Styles.Resources>
+
+    <!-- ===== Global Styles ===== -->
+
+    <Style Selector="Window">
+        <Setter Property="Background" Value="{DynamicResource SidebarBackground}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource ContentControlThemeFontFamily}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <!-- App.ApplyBackdrop makes the window see-through only once Mica is granted. -->
+        <Setter Property="TransparencyLevelHint" Value="Mica"/>
+    </Style>
+
+    <!-- Text inputs: 32px, a hairline all round that turns accent on focus. -->
+    <Style Selector="TextBox">
+        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="Padding" Value="10,5,6,6"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="SelectionBrush" Value="{DynamicResource AccentIndicator}"/>
+        <Setter Property="SelectionForegroundBrush" Value="{DynamicResource TextOnAccent}"/>
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="ComboBox">
+        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="MinHeight" Value="32"/>
+    </Style>
+
+    <!-- Menu bar: rounded, inset hover like the Windows 11 menu bar. -->
+    <Style Selector="Menu">
+        <Setter Property="Background" Value="{DynamicResource ChromeBackground}"/>
+        <Setter Property="Padding" Value="4,0"/>
+    </Style>
+    <Style Selector="Menu > MenuItem">
+        <Setter Property="Padding" Value="10,5"/>
+        <Setter Property="Margin" Value="0,2"/>
+        <Setter Property="CornerRadius" Value="5"/>
+    </Style>
+    <Style Selector="MenuItem">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+    </Style>
+    <Style Selector="MenuItem /template/ Border#PART_LayoutRoot">
+        <Setter Property="CornerRadius" Value="5"/>
+    </Style>
+    <Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource TreeItemHover}"/>
+    </Style>
+    <!-- Icons in menus render in the Fluent icon font at the dimmed tone. -->
+    <Style Selector="MenuItem /template/ ContentPresenter#PART_IconPresenter TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+    </Style>
+
+    <Style Selector="Separator">
+        <Setter Property="Background" Value="{DynamicResource DividerStroke}"/>
+    </Style>
+
+    <!-- Overlays: rounded 8, dark stroke, inner padding so hover highlights inset. -->
+    <Style Selector="FlyoutPresenter">
+        <Setter Property="Background" Value="{DynamicResource OverlayBackground}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource OverlayStroke}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+    </Style>
+    <Style Selector="MenuFlyoutPresenter">
+        <Setter Property="Background" Value="{DynamicResource OverlayBackground}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource OverlayStroke}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="4"/>
+    </Style>
+    <Style Selector="ContextMenu">
+        <Setter Property="Background" Value="{DynamicResource OverlayBackground}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource OverlayStroke}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="4"/>
+    </Style>
+    <Style Selector="ToolTip">
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="FontSize" Value="12"/>
+    </Style>
+
+    <!-- Lists: transparent rows with subtle hover and selection fills. -->
+    <Style Selector="ListBox">
+        <Setter Property="Background" Value="#00FFFFFF"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStroke}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+    </Style>
+    <!-- A list inside a Border.card: the card draws the edge. -->
+    <Style Selector="ListBox.in-card">
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="ListBoxItem">
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="12,6"/>
+        <Setter Property="Margin" Value="4,1"/>
+        <Setter Property="Background" Value="#00FFFFFF"/>
+        <!-- Same as Fluent's template plus the Windows 11 selection pill: a
+             3x16 accent bar at the row's left edge. -->
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Panel>
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Background="{TemplateBinding Background}"
+                                      BorderBrush="{TemplateBinding BorderBrush}"
+                                      BorderThickness="{TemplateBinding BorderThickness}"
+                                      CornerRadius="{TemplateBinding CornerRadius}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      Content="{TemplateBinding Content}"
+                                      Padding="{TemplateBinding Padding}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                    <Border Name="PART_SelectionPill"
+                            Width="3" Height="16"
+                            CornerRadius="1.5"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Background="{DynamicResource AccentIndicator}"
+                            IsVisible="False"/>
+                </Panel>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ListBoxItem:selected /template/ Border#PART_SelectionPill">
+        <Setter Property="IsVisible" Value="True"/>
+    </Style>
+    <Style Selector="ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.083"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource TreeItemHover}"/>
+    </Style>
+    <Style Selector="ListBoxItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SubtlePressed}"/>
+    </Style>
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource TreeItemSelected}"/>
+    </Style>
+    <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ControlFillHover}"/>
+    </Style>
+
+    <Style Selector="CheckBox">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+    </Style>
+
+    <!-- Windows 11 motion: quick fades on hover and press (83ms). -->
+    <Style Selector="Button /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.083"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.083"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <!-- ===== Build steps =====
+         Each step is a 30 px group: the step (its icon and name) and, for map steps,
+         its mode after a hairline. A step that will run is a filled group with a
+         bright name and a teal icon; one that won't is an outline in the faint tone.
+         Teal stays an icon colour here, so the Build button is the one teal fill. -->
+    <Style Selector="ToggleButton.build-step">
+        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="ToggleButton.build-step /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}"/>
+    </Style>
+    <Style Selector="ToggleButton.build-step TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundTertiary}"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+    <Style Selector="ToggleButton.build-step:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource TreeItemHover}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}"/>
+    </Style>
+    <Style Selector="ToggleButton.build-step:pointerover TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+    </Style>
+    <Style Selector="ToggleButton.build-step:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource StepFill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource StepStroke}"/>
+    </Style>
+    <Style Selector="ToggleButton.build-step:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource StepFill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ForegroundTertiary}"/>
+    </Style>
+    <Style Selector="ToggleButton.build-step:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource StepFill}"/>
+    </Style>
+    <Style Selector="ToggleButton.build-step:checked TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+    </Style>
+    <Style Selector="ToggleButton.build-step:checked TextBlock.step-icon">
+        <Setter Property="Foreground" Value="{DynamicResource AccentIndicator}"/>
+    </Style>
+    <Style Selector="ToggleButton.build-step.split-main">
+        <Setter Property="CornerRadius" Value="7,0,0,7"/>
+    </Style>
+
+    <!-- A map step's mode: the second half of its group, after a hairline; filled while the step will run. -->
+    <Style Selector="Button.build-step-mode-button">
+        <Setter Property="CornerRadius" Value="0,7,7,0"/>
+        <Setter Property="Padding" Value="9,0,8,0"/>
+        <Setter Property="MinWidth" Value="56"/>
+        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Margin" Value="-1,0,0,0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.build-step-mode-button /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}"/>
+    </Style>
+    <Style Selector="Button.build-step-mode-button.on /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource StepFill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource StepStroke}"/>
+    </Style>
+    <Style Selector="Button.build-step-mode-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource TreeItemHover}"/>
+    </Style>
+    <Style Selector="Button.build-step-mode-button TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+    </Style>
+
+    <!-- ===== Chips =====
+         The log's error and warning filters and the picker's active filter: 26 px,
+         no edge, a dot that carries the colour. The one in effect is filled. -->
+    <Style Selector="Button.chip">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="MinHeight" Value="26"/>
+        <Setter Property="Height" Value="26"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource TreeItemHover}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+    </Style>
+    <Style Selector="Button.chip:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SubtlePressed}"/>
+    </Style>
+    <Style Selector="Button.chip:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundTertiary}"/>
+    </Style>
+    <Style Selector="Button.chip.active">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+    </Style>
+    <Style Selector="Button.chip.active /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource TreeItemSelected}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="Button.chip.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource TreeItemSelected}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+
+    <!-- ===== Title bar =====
+         Menus and pinned tools sit in the 32px caption strip over Mica. -->
+    <Style Selector="Menu.titlebar > MenuItem">
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Margin" Value="0,3"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+    </Style>
+    <Style Selector="Menu.titlebar > MenuItem:pointerover, Menu.titlebar > MenuItem:open">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+    </Style>
+    <!-- The project picker: a filled field on the window, the project's name and its type. -->
+    <Style Selector="Button.picker">
+        <Setter Property="Background" Value="{DynamicResource FieldFill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Height" Value="32"/>
+    </Style>
+    <Style Selector="Button.picker:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource FieldFill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ForegroundTertiary}"/>
+    </Style>
+    <!-- The command row's outlined buttons (Run, the project's ⋯) and its quiet dropdowns sit 32 px tall at 8 px corners. -->
+    <Style Selector="Button.cmdrow">
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Height" Value="32"/>
+    </Style>
+    <Style Selector="Button.titlebar-tool">
+        <Setter Property="MinHeight" Value="28"/>
+        <Setter Property="MinWidth" Value="32"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- The update control: a download glyph and what the update is doing. The glyph takes the accent while an
+         update waits on the user (ready, installing on close, installed). -->
+    <Style Selector="TextBlock.update-glyph">
+        <Setter Property="Text" Value="&#xE896;"/>
+        <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBlock.update-glyph.pending">
+        <Setter Property="Foreground" Value="{DynamicResource AccentIndicator}"/>
+    </Style>
+    <Style Selector="TextBlock.update-glyph.success">
+        <Setter Property="Text" Value="&#xE930;"/>
+        <Setter Property="Foreground" Value="{DynamicResource SuccessGreen}"/>
+    </Style>
+    <Style Selector="TextBlock.update-glyph.warning">
+        <Setter Property="Text" Value="&#xE7BA;"/>
+        <Setter Property="Foreground" Value="{DynamicResource WarningYellow}"/>
+    </Style>
+    <!-- Help > Updates' status line: information, not a command, so while it can't be clicked it reads at the dimmed
+         tone rather than the disabled one. Its glyph sits in the menu's icon column. -->
+    <Style Selector="MenuItem.update-status:disabled /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+    </Style>
+    <!-- The flyout: a failure's glyph beside the title, and the release notes on a recessed fill. -->
+    <Style Selector="TextBlock.update-state">
+        <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="VerticalAlignment" Value="Top"/>
+        <Setter Property="Margin" Value="0,3,10,0"/>
+    </Style>
+    <Style Selector="TextBlock.update-state.warning">
+        <Setter Property="Text" Value="&#xE7BA;"/>
+        <Setter Property="Foreground" Value="{DynamicResource WarningYellow}"/>
+    </Style>
+    <Style Selector="Border.update-notes">
+        <Setter Property="Background" Value="{DynamicResource FieldFill}"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="10,8"/>
+    </Style>
+
+    <!-- Dropdown buttons in the command and build rows: a label, a value and a caret. -->
+    <Style Selector="Button.dropdown">
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="Padding" Value="10,4,8,4"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.dropdown TextBlock.dropdown-label">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundTertiary}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.dropdown TextBlock.dropdown-value">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+    <Style Selector="Button.dropdown TextBlock.dropdown-caret">
+        <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+        <Setter Property="FontSize" Value="8"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="2,1,0,0"/>
+    </Style>
+
+    <!-- MAP / MOD / TOOL badge: the project switcher, the project picker, the command palette. -->
+    <Style Selector="Border.type-badge">
+        <Setter Property="Background" Value="{DynamicResource TreeItemHover}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="6,1"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.type-badge > TextBlock">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+    </Style>
+
+    <!-- Key hint ("Ctrl" "B"): one cap per key, dim, right-aligned in lists. -->
+    <Style Selector="Border.keycap">
+        <Setter Property="Background" Value="{DynamicResource ControlFill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="3"/>
+        <Setter Property="Padding" Value="5,1"/>
+        <Setter Property="MinWidth" Value="20"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.keycap > TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundTertiary}"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- Status bar outcome glyph: the bar stays neutral, the glyph carries the colour. -->
+    <Style Selector="TextBlock.status-glyph">
+        <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="0,1,8,0"/>
+    </Style>
+    <Style Selector="TextBlock.status-glyph.error">
+        <Setter Property="Text" Value="&#xEA39;"/>
+        <Setter Property="Foreground" Value="{DynamicResource ErrorRed}"/>
+    </Style>
+    <Style Selector="TextBlock.status-glyph.warning">
+        <Setter Property="Text" Value="&#xE7BA;"/>
+        <Setter Property="Foreground" Value="{DynamicResource WarningYellow}"/>
+    </Style>
+    <Style Selector="TextBlock.status-glyph.success">
+        <Setter Property="Text" Value="&#xE930;"/>
+        <Setter Property="Foreground" Value="{DynamicResource SuccessGreen}"/>
+    </Style>
+
+    <!-- ===== Dialogs =====
+         Every dialog and tool window uses these. Why one set: margins, label
+         widths, button widths and header sizes had drifted per dialog. -->
+
+    <!-- Dialogs draw their own header under the system caption buttons, so the
+         title is never shown twice. -->
+    <Style Selector="Window.dialog">
+        <Setter Property="ExtendClientAreaToDecorationsHint" Value="True"/>
+        <Setter Property="ExtendClientAreaChromeHints" Value="PreferSystemChrome"/>
+        <Setter Property="ExtendClientAreaTitleBarHeightHint" Value="32"/>
+        <Setter Property="CanMinimize" Value="False"/>
+        <Setter Property="CanMaximize" Value="False"/>
+        <Setter Property="ShowInTaskbar" Value="False"/>
+    </Style>
+    <Style Selector="Window.dialog.tool">
+        <Setter Property="CanMaximize" Value="True"/>
+    </Style>
+
+    <!-- Form body: labels above fields, 8 between label and field, 16 between fields. -->
+    <Style Selector="StackPanel.form">
+        <Setter Property="Spacing" Value="16"/>
+    </Style>
+    <Style Selector="StackPanel.field">
+        <Setter Property="Spacing" Value="8"/>
+    </Style>
+    <Style Selector="TextBlock.label">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+    </Style>
+    <Style Selector="TextBlock.hint">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <!-- A field's error text. It always sits in a Grid.field-message, which reserves its line. -->
+    <Style Selector="TextBlock.field-error">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="{DynamicResource ErrorRed}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style Selector="TextBlock.section">
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <!-- The one line under a field for its hint or its error (in the same place), with an
+         optional link action on the right. 4 px under the field; its height is reserved even
+         when empty, so showing an error, swapping hint for error, or showing the link never
+         moves anything. -->
+    <Style Selector="Grid.field-message">
+        <Setter Property="Margin" Value="0,-4,0,0"/>
+        <Setter Property="MinHeight" Value="24"/>
+    </Style>
+    <Style Selector="Grid.field-message TextBlock.hint, Grid.field-message TextBlock.field-error">
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- Footer: status on the left, buttons on the right (primary, then Cancel). -->
+    <Style Selector="TextBlock.status">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBlock.error">
+        <Setter Property="Foreground" Value="{DynamicResource ErrorRed}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="StackPanel.dialog-buttons">
+        <Setter Property="Orientation" Value="Horizontal"/>
+        <Setter Property="Spacing" Value="8"/>
+    </Style>
+    <Style Selector="StackPanel.dialog-buttons > Button">
+        <Setter Property="MinWidth" Value="96"/>
+    </Style>
+
+    <!-- Busy primary button: the label keeps the button's width while a thin
+         indeterminate bar runs in its place. -->
+    <Style Selector="Panel.busy-label > ProgressBar">
+        <Setter Property="IsVisible" Value="False"/>
+        <Setter Property="IsIndeterminate" Value="True"/>
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="MinHeight" Value="3"/>
+        <Setter Property="Height" Value="3"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccent}"/>
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Panel.busy-label.busy > ProgressBar">
+        <Setter Property="IsVisible" Value="True"/>
+    </Style>
+    <Style Selector="Panel.busy-label.busy > TextBlock">
+        <Setter Property="Opacity" Value="0"/>
+    </Style>
+
+    <!-- Inline text action beside a hint or error ("Use zm_my_map"). Pair with
+         Theme="{StaticResource ToolbarButton}". -->
+    <Style Selector="Button.link">
+        <Setter Property="Foreground" Value="{DynamicResource AccentIndicator}"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="MinHeight" Value="24"/>
+        <Setter Property="FontSize" Value="12"/>
+    </Style>
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource AccentIndicatorStrong}"/>
+    </Style>
+    <!-- A quieter link for secondary actions in a field header ("Copy"). -->
+    <Style Selector="Button.link.quiet">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundDimmed}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.link.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimary}"/>
+    </Style>
+
+    <!-- A field's label row with a count or a quiet action on the right: one height, one centre line. -->
+    <Style Selector="Grid.field-header">
+        <Setter Property="MinHeight" Value="24"/>
+    </Style>
+    <Style Selector="Grid.field-header TextBlock.hint">
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- Formatting buttons above a text editor: 12 px, so they share a centre line with a hint beside them. -->
+    <Style Selector="StackPanel.bbcode-toolbar > Button">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="MinHeight" Value="28"/>
+        <Setter Property="MinWidth" Value="28"/>
+        <Setter Property="Padding" Value="8,2"/>
+    </Style>
+
+    <!-- A text field inside a frame that draws the chrome (the log's find field, the
+         command palette): the field itself has none in any state. -->
+    <Style Selector="TextBox.bare">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBox.bare /template/ Border#PART_BorderElement, TextBox.bare:pointerover /template/ Border#PART_BorderElement, TextBox.bare:focus /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <!-- Frame for a search field with an icon and a clear button inside it. -->
+    <Style Selector="Border.search-frame">
+        <Setter Property="Background" Value="{DynamicResource InputBackground}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="Padding" Value="8,0,2,0"/>
+        <Setter Property="Height" Value="28"/>
+    </Style>
+    <Style Selector="Border.search-frame:focus-within">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentIndicator}"/>
+    </Style>
+
+    <!-- Command palette results: roomier rows, keyboard-driven. The theme's selection
+         pill carries the selected state; the focus adorner stays for keyboard users. -->
+    <Style Selector="ListBox.palette ListBoxItem">
+        <Setter Property="Padding" Value="14,8"/>
+    </Style>
+    <Style Selector="ListBox.palette ListBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource TreeItemSelected}"/>
+    </Style>
+    <Style Selector="ListBox.palette ListBoxItem:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource TreeItemHover}"/>
+    </Style>
+
+    <!-- Inline status banner (Publish checks). Tone comes from a level class on the Border. -->
+    <Style Selector="Border.banner">
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+    </Style>
+    <Style Selector="Border.banner.blocker">
+        <Setter Property="Background" Value="{DynamicResource ErrorTint}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ErrorTintStroke}"/>
+    </Style>
+    <Style Selector="Border.banner.warning">
+        <Setter Property="Background" Value="{DynamicResource WarningTint}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource WarningTintStroke}"/>
+    </Style>
+    <Style Selector="Border.banner.info">
+        <Setter Property="Background" Value="{DynamicResource AccentTint}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStroke}"/>
+    </Style>
+    <Style Selector="Border.banner.ok">
+        <Setter Property="Background" Value="{DynamicResource SuccessTint}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource SuccessTintStroke}"/>
+    </Style>
+
+    <Style Selector="TextBlock.row-icon-blocker">
+        <Setter Property="Foreground" Value="{DynamicResource ErrorRed}"/>
+    </Style>
+    <Style Selector="TextBlock.row-icon-warning">
+        <Setter Property="Foreground" Value="{DynamicResource WarningYellow}"/>
+    </Style>
+    <Style Selector="TextBlock.row-icon-info">
+        <Setter Property="Foreground" Value="{DynamicResource AccentIndicator}"/>
+    </Style>
+    <Style Selector="TextBlock.row-icon-ok">
+        <Setter Property="Foreground" Value="{DynamicResource SuccessGreen}"/>
+    </Style>
+
+    <!-- Small marker beside a field label when the banner has a row about it. -->
+    <Style Selector="TextBlock.field-flag">
+        <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- A settings list inside a card: full-width rows split by hairlines, no selection. -->
+    <Style Selector="Border.row">
+        <Setter Property="BorderBrush" Value="{DynamicResource DividerStroke}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Padding" Value="16,8,8,8"/>
+        <Setter Property="MinHeight" Value="52"/>
+    </Style>
+    <Style Selector="Border.row:pointerover">
+        <Setter Property="Background" Value="{DynamicResource TreeItemHover}"/>
+    </Style>
+
+    <!-- Rows in a small read-only list inside a card: hairlines between, none after the last. -->
+    <Style Selector="ItemsControl ContentPresenter:not(:nth-last-child(1)) > Border.version-row">
+        <Setter Property="BorderBrush" Value="{DynamicResource DividerStroke}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    </Style>
+    <!-- A file or folder path set apart under a message. -->
+    <Style Selector="Border.path-well">
+        <Setter Property="Background" Value="{DynamicResource ControlFill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStroke}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="Padding" Value="10,6"/>
+    </Style>
+    <Style Selector="TextBlock.mono">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+    </Style>
+
+    <!-- Grouped content inside a dialog body. -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource LayerFill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStroke}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="16"/>
+    </Style>
+</Styles>

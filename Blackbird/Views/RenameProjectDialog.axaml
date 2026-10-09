@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:views="using:Blackbird.Views"
+        x:Class="Blackbird.Views.RenameProjectDialog"
+        x:DataType="vm:RenameProjectDialogViewModel"
+        WindowStartupLocation="CenterOwner"
+        Classes="dialog"
+        Title="Rename folder"
+        Width="480" SizeToContent="Height"
+        CanResize="False">
+
+    <views:DialogShell Title="{Binding Title}">
+        <views:DialogShell.Status>
+            <TextBlock Classes="error" Text="{Binding ErrorMessage}" ToolTip.Tip="{Binding ErrorDetail}"/>
+        </views:DialogShell.Status>
+        <views:DialogShell.Footer>
+            <StackPanel Classes="dialog-buttons">
+                <Button Click="OnRenameClick" IsDefault="True" AutomationProperties.Name="Rename"
+                        IsEnabled="{Binding !IsUnchanged}"
+                        ToolTip.Tip="{Binding RenameToolTip}"
+                        ToolTip.ShowOnDisabled="True"
+                        Theme="{StaticResource AccentButton}">
+                    <Panel Classes="busy-label" Classes.busy="{Binding ShowBusy}">
+                        <TextBlock Text="Rename" HorizontalAlignment="Center"/>
+                        <ProgressBar/>
+                    </Panel>
+                </Button>
+                <Button Content="Cancel" IsCancel="True" IsEnabled="{Binding IsIdle}"
+                        Click="OnCancelClick"
+                        Theme="{StaticResource SubtleButton}"/>
+            </StackPanel>
+        </views:DialogShell.Footer>
+
+        <StackPanel Classes="form" IsEnabled="{Binding IsIdle}">
+            <StackPanel Classes="field">
+                <TextBlock Classes="label" Text="New folder name"/>
+                <TextBox Name="NameBox"
+                         Text="{Binding NewName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         MaxLength="64"
+                         LostFocus="OnNameLostFocus"/>
+                <Grid Classes="field-message">
+                    <TextBlock Classes="field-error" Text="{Binding NameError}"/>
+                </Grid>
+            </StackPanel>
+            <TextBlock Classes="hint" Text="{Binding Explanation}"/>
+        </StackPanel>
+    </views:DialogShell>
+</Window>

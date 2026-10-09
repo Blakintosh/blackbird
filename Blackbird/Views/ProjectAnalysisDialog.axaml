@@ -1,0 +1,206 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:models="using:Blackbird.Models"
+        xmlns:views="using:Blackbird.Views"
+        x:Class="Blackbird.Views.ProjectAnalysisDialog"
+        x:DataType="vm:ProjectAnalysisDialogViewModel"
+        WindowStartupLocation="CenterOwner"
+        Classes="dialog tool"
+        Title="Project analysis"
+        Width="880" Height="560"
+        MinWidth="640" MinHeight="420">
+
+    <views:DialogShell Title="Project analysis"
+                       Subtitle="{Binding Subtitle}">
+        <views:DialogShell.Status>
+            <TextBlock Classes="status" Text="{Binding FooterStatus}"/>
+        </views:DialogShell.Status>
+
+        <views:DialogShell.Footer>
+            <StackPanel Classes="dialog-buttons">
+                <Button Content="Clean GDT duplicates"
+                        Click="OnCleanGdtDuplicatesClick"
+                        IsEnabled="{Binding CanCleanGdtDuplicates}"
+                        ToolTip.Tip="{Binding CleanDisabledReason, TargetNullValue='Remove repeated asset blocks, keeping the first. The original files go to the Recycle Bin.'}"
+                        ToolTip.ShowOnDisabled="True"
+                        Theme="{StaticResource SubtleButton}"/>
+                <Button Content="Copy report"
+                        Click="OnCopyReportClick"
+                        IsEnabled="{Binding CanCopyReport}"
+                        Theme="{StaticResource SubtleButton}"/>
+                <!-- Everything here is already saved, so Close is the primary. Not IsDefault:
+                     Enter in the search field must never close the window. -->
+                <Button Content="Close"
+                        Click="OnCloseClick"
+                        IsCancel="True"
+                        Theme="{StaticResource AccentButton}"/>
+            </StackPanel>
+        </views:DialogShell.Footer>
+
+        <Grid RowDefinitions="Auto,*" RowSpacing="12">
+            <Grid ColumnDefinitions="160,*,Auto" ColumnSpacing="8">
+                <ComboBox ItemsSource="{Binding IssueFilters}"
+                          SelectedIndex="{Binding SelectedIssueFilterIndex}"
+                          HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Filter by severity"/>
+                <Border Grid.Column="1" Classes="search-frame" Height="32">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <TextBlock Text="&#xE721;"
+                                   FontFamily="{StaticResource IconFont}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource ForegroundDimmed}"
+                                   VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1"
+                                 Name="SearchBox"
+                                 Classes="bare"
+                                 MinHeight="24"
+                                 Text="{Binding IssueSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Watermark="Search findings"
+                                 AutomationProperties.Name="Search findings"
+                                 KeyDown="OnSearchKeyDown"/>
+                        <Button Grid.Column="2"
+                                Theme="{StaticResource ToolbarButton}"
+                                IsVisible="{Binding IssueSearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                MinHeight="24" MinWidth="24" Padding="0"
+                                Click="OnClearSearchClick"
+                                AutomationProperties.Name="Clear the search"
+                                ToolTip.Tip="Clear (Esc)">
+                            <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="10"/>
+                        </Button>
+                    </Grid>
+                </Border>
+                <TextBlock Grid.Column="2"
+                           Classes="status"
+                           Text="{Binding IssueFilterSummary}"
+                           MinWidth="72"
+                           TextAlignment="Right"/>
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Classes="card"
+                    Padding="0"
+                    ClipToBounds="True"
+                    IsVisible="{Binding IsListVisible}">
+                <Panel>
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding Issues}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="models:ProjectAnalysisIssue">
+                                    <Border Classes="row">
+                                        <Grid ColumnDefinitions="Auto,*,260,72" ColumnSpacing="12">
+                                            <TextBlock Text="{Binding StatusIcon}"
+                                                       FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14"
+                                                       VerticalAlignment="Center"
+                                                       Classes.row-icon-blocker="{Binding IsBlocker}"
+                                                       Classes.row-icon-warning="{Binding IsWarning}"
+                                                       Classes.row-icon-info="{Binding IsInfo}"
+                                                       Classes.row-icon-ok="{Binding IsOk}"
+                                                       ToolTip.Tip="{Binding Status}"
+                                                       AutomationProperties.Name="{Binding Status}"/>
+                                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Check}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Classes="hint"
+                                                           Text="{Binding Detail}"
+                                                           TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip.Tip="{Binding Detail}"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2"
+                                                       Classes="hint mono"
+                                                       Text="{Binding DisplayLocation}"
+                                                       TextWrapping="NoWrap"
+                                                       TextTrimming="PathSegmentEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       ToolTip.Tip="{Binding FullLocation}"/>
+                                            <Button Grid.Column="3"
+                                                    Content="Open"
+                                                    Tag="{Binding}"
+                                                    Click="OnOpenIssueClick"
+                                                    IsVisible="{Binding HasLocation}"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Open at this line in VS Code, or with the default app"
+                                                    Theme="{StaticResource SubtleButton}"
+                                                    Padding="12,4"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <!-- Analysis finished with nothing to report. -->
+                    <StackPanel IsVisible="{Binding IsNothingFound}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="8">
+                        <TextBlock Text="&#xE930;"
+                                   FontFamily="{StaticResource IconFont}"
+                                   FontSize="20"
+                                   Foreground="{DynamicResource SuccessGreen}"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Classes="status"
+                                   Text="No issues found."
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Panel>
+            </Border>
+
+            <!-- Empty after filtering. -->
+            <StackPanel Grid.Row="1"
+                        IsVisible="{Binding IsFilterEmpty}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12">
+                <TextBlock Classes="status"
+                           Text="No findings match the filter."
+                           HorizontalAlignment="Center"/>
+                <Button Content="Show all findings"
+                        Click="OnClearFiltersClick"
+                        HorizontalAlignment="Center"
+                        MinWidth="96"
+                        Theme="{StaticResource SubtleButton}"/>
+            </StackPanel>
+
+            <!-- Analysis or cleanup running, past 150 ms. -->
+            <StackPanel Grid.Row="1"
+                        IsVisible="{Binding IsProgressVisible}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12">
+                <ProgressBar IsIndeterminate="True"
+                             Width="200"
+                             MinWidth="0"/>
+                <TextBlock Classes="status"
+                           Text="{Binding ProgressText}"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Analysis or cleanup failed. -->
+            <StackPanel Grid.Row="1"
+                        IsVisible="{Binding HasError}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MaxWidth="480"
+                        Spacing="12">
+                <TextBlock Classes="error"
+                           Text="{Binding ErrorText}"
+                           TextAlignment="Center"
+                           HorizontalAlignment="Center"/>
+                <Button Content="Analyze again"
+                        Click="OnRetryClick"
+                        HorizontalAlignment="Center"
+                        MinWidth="96"
+                        Theme="{StaticResource SubtleButton}"/>
+            </StackPanel>
+        </Grid>
+    </views:DialogShell>
+</Window>
