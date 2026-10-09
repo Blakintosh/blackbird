@@ -8,7 +8,7 @@
     <AssemblyName>modlauncher</AssemblyName>
     <AssemblyTitle>Blackbird</AssemblyTitle>
     <Product>Blackbird</Product>
-    <Version>0.9.0</Version>
+    <Version>0.9.1</Version>
     <ApplicationIcon>Assets\blackbird.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>

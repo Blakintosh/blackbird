@@ -3,14 +3,19 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Blackbird.Models;
 
 namespace Blackbird.Services;
 
-public class BuildService : IBuildService
+public partial class BuildService : IBuildService
 {
+    // The linker ends a run with "done: 0m46.40s" even when it reported asset errors, yet exits non-zero for them.
+    [GeneratedRegex(@"^done:\s*\d+m\d+(\.\d+)?s\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex LinkerDoneLine();
+
     private const int OutputFlushIntervalMs = 150;
     private const int OutputDrainTimeoutMs = 1500;
 
@@ -46,6 +51,7 @@ public class BuildService : IBuildService
             process.Exited += (_, _) => exited.TrySetResult();
             var outputBuffer = new StringBuilder();
             var outputLock = new object();
+            var tail = new LineTail();
             using var outputFlushCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var outputFlushTask = FlushOutputPeriodicallyAsync(
                 outputBuffer,
@@ -60,7 +66,7 @@ public class BuildService : IBuildService
                 if (e.Data is null)
                     stdoutClosed.TrySetResult();
                 else
-                    AppendOutputLine(outputBuffer, outputLock, e.Data);
+                    AppendOutputLine(outputBuffer, outputLock, e.Data, tail);
             };
 
             process.ErrorDataReceived += (_, e) =>
@@ -68,7 +74,7 @@ public class BuildService : IBuildService
                 if (e.Data is null)
                     stderrClosed.TrySetResult();
                 else
-                    AppendOutputLine(outputBuffer, outputLock, e.Data);
+                    AppendOutputLine(outputBuffer, outputLock, e.Data, tail);
             };
 
             try
@@ -106,7 +112,9 @@ public class BuildService : IBuildService
 
             ct.ThrowIfCancellationRequested();
 
-            if (process.ExitCode != 0)
+            // Non-zero with the linker's closing "done:" line means it ran to the end and only reported errors;
+            // those are counted from the log, so the build lands as "completed with errors", not "failed".
+            if (process.ExitCode != 0 && !ReachedDone(tail, outputLock))
             {
                 allSucceeded = false;
                 if (!ignoreErrors)
@@ -131,11 +139,26 @@ public class BuildService : IBuildService
         }
     }
 
-    private static void AppendOutputLine(StringBuilder outputBuffer, object outputLock, string line)
+    private sealed class LineTail
+    {
+        public string? Value;
+    }
+
+    private static void AppendOutputLine(StringBuilder outputBuffer, object outputLock, string line, LineTail? tail = null)
     {
         lock (outputLock)
         {
             outputBuffer.AppendLine(line);
+            if (tail is not null && !string.IsNullOrWhiteSpace(line))
+                tail.Value = line;
+        }
+    }
+
+    private static bool ReachedDone(LineTail tail, object outputLock)
+    {
+        lock (outputLock)
+        {
+            return tail.Value is { } last && LinkerDoneLine().IsMatch(last.Trim());
         }
     }
 
