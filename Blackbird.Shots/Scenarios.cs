@@ -46,6 +46,7 @@ internal static class Scenarios
         UpdateScenario.Run(_main, _vm.Updates);
         ThemeScenario.Run(_main, _vm, _settings);
         LogFind();
+        LogFollows();
         Building();
         CommandPalette();
         LaunchSettings();
@@ -220,6 +221,33 @@ internal static class Scenarios
         _vm.Output.Replace(original);
         Pump(100);
 
+    }
+
+    /// <summary>A build's output arriving in bursts keeps the log pinned to its end.</summary>
+    private static void LogFollows()
+    {
+        var log = _main.FindControl<ColoredLogView>("BuildLogView")!;
+        var editor = Find<AvaloniaEdit.TextEditor>(log).First();
+        var original = _vm.Output.Text;
+        _vm.Output.Replace("");
+        Pump(200);
+
+        var missed = 0;
+        var worst = 0.0;
+        for (var burst = 0; burst < 40; burst++)
+        {
+            var lines = Enumerable.Range(0, 30).Select(i => $"Linking xmodel p7_asset_{burst}_{i} into zone zm_castle_redux ^3(streamed)^7 ok");
+            _vm.Output.Append(string.Join('\n', lines) + '\n');
+            Pump(150);
+            var gap = Math.Max(0, editor.ExtentHeight - editor.ViewportHeight) - editor.VerticalOffset;
+            worst = Math.Max(worst, gap);
+            Console.WriteLine($"  burst {burst}: offset {editor.VerticalOffset:0} extent {editor.ExtentHeight:0} viewport {editor.ViewportHeight:0} gap {gap:0}");
+            if (gap > 20)
+                missed++;
+        }
+        Check($"log: a streaming build stays pinned to the end ({missed} of 40 bursts left behind, worst gap {worst:0} px)", missed == 0);
+        _vm.Output.Replace(original);
+        Pump(100);
     }
 
     private static void Building()

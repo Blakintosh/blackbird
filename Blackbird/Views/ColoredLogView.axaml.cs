@@ -708,7 +708,7 @@ public partial class ColoredLogView : UserControl
         if (_editor is null)
             return;
 
-        _editor.ScrollToVerticalOffset(GetMaxVerticalOffset(_editor));
+        _editor.ScrollToEnd();
         _lastAutoScrollOffset = _editor.VerticalOffset;
     }
 
