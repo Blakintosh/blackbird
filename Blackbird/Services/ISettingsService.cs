@@ -24,6 +24,8 @@ public interface ISettingsService
     List<ToolShortcut> ToolShortcuts { get; set; }
     /// <summary>The theme (<see cref="ThemeChoice"/>): System follows Windows.</summary>
     string Theme { get; set; }
+    /// <summary>Link with bb-linker (when installed) instead of the stock linker. On by default.</summary>
+    bool UseBbLinker { get; set; }
     /// <summary>When the automatic update check last ran; it runs at most once a day.</summary>
     DateTime? LastUpdateCheckUtc { get; set; }
 

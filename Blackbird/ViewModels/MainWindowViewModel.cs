@@ -1823,6 +1823,23 @@ public partial class MainWindowViewModel : ObservableObject
     public bool IsThemeSlate => Theme == ThemeChoice.Slate;
     public bool IsThemeLight => Theme == ThemeChoice.Light;
 
+    /// <summary>Tools > Link with bb-linker: shown only when bb-linker is installed beside the launcher.</summary>
+    public bool IsBbLinkerInstalled => BbLinker.InstalledPath is not null;
+
+    public bool UseBbLinker
+    {
+        get => _settings.UseBbLinker;
+        set
+        {
+            if (_settings.UseBbLinker != value)
+            {
+                _settings.UseBbLinker = value;
+                QueueSettingsSave();
+            }
+            OnPropertyChanged();
+        }
+    }
+
     [RelayCommand]
     private void SetTheme(ThemeChoice choice)
     {
@@ -3114,10 +3131,10 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        // Test hook: bb-linker links the main and localized zones in one process, with its own incremental builds,
+        // bb-linker links the main and localized zones in one process, with its own incremental builds,
         // and hands anything it can't link yet to the stock linker.
         environment ??= new LinkStampEnvironment(_fileSystem.GamePath, _fileSystem.ToolsPath);
-        if (BbLinker.ExecutablePath is { } bbLinker)
+        if (_settings.UseBbLinker && BbLinker.InstalledPath is { } bbLinker)
         {
             List<string> args = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
             var languages = languageArgs.Where((_, i) => i % 2 == 1).ToList();
