@@ -11,6 +11,24 @@ public class BuildCommand
     /// <summary>Starts the game rather than building: launched on its own, never awaited as a build step.</summary>
     public bool LaunchesGame { get; init; }
 
+    /// <summary>For <c>gdtdb /update</c>: skips the step when no GDT, deffile or database changed since the last clean update.</summary>
+    public Services.GdtDbGate? GdtDbGate { get; init; }
+
+    /// <summary>For a map link: removes the linker's one-second Umbra tome poll (see <see cref="Services.LinkerUmbraPatch"/>).</summary>
+    public bool PatchUmbraWait { get; init; }
+
+    /// <summary>
+    /// For a link: skips it, showing the last output, when nothing any of its zones depends on changed since
+    /// then. One stamp per zone the step writes (bb-linker links the main and localized zones in one process).
+    /// </summary>
+    public IReadOnlyList<Services.LinkStamp> LinkStamps { get; init; } = [];
+
+    /// <summary>Runs instead when this step exits with one of bb-linker's "use the stock linker" codes.</summary>
+    public BuildCommand? Fallback { get; init; }
+
+    /// <summary>Extra environment variables for the step's process.</summary>
+    public IReadOnlyDictionary<string, string>? Environment { get; init; }
+
     public BuildCommand(string executable, List<string> arguments, string? description = null)
     {
         Executable = executable;

@@ -39,6 +39,7 @@ public class JsonSettingsService : ISettingsService
     public Dictionary<string, ProjectSettings> Projects { get; set; } = new();
     public List<ToolShortcut> ToolShortcuts { get; set; } = [];
     public string Theme { get; set; } = nameof(ThemeChoice.System);
+    public bool UseBbLinker { get; set; } = true;
     public DateTime? LastUpdateCheckUtc { get; set; }
 
     public JsonSettingsService()
@@ -160,6 +161,7 @@ public class JsonSettingsService : ISettingsService
         Projects = data.Projects ?? new();
         ToolShortcuts = data.ToolShortcuts ?? [];
         Theme = data.Theme ?? nameof(ThemeChoice.System);
+        UseBbLinker = data.UseBbLinker ?? true;
         LastUpdateCheckUtc = data.LastUpdateCheckUtc;
     }
 
@@ -193,6 +195,7 @@ public class JsonSettingsService : ISettingsService
             Projects = Projects,
             ToolShortcuts = ToolShortcuts,
             Theme = Theme,
+            UseBbLinker = UseBbLinker,
             LastUpdateCheckUtc = LastUpdateCheckUtc,
         };
 
@@ -264,6 +267,7 @@ public class JsonSettingsService : ISettingsService
         public Dictionary<string, ProjectSettings>? Projects { get; set; } = new();
         public List<ToolShortcut>? ToolShortcuts { get; set; } = [];
         public string? Theme { get; set; } = nameof(ThemeChoice.System);
+        public bool? UseBbLinker { get; set; } = true;
         public DateTime? LastUpdateCheckUtc { get; set; }
     }
 }
