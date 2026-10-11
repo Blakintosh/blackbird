@@ -2,6 +2,9 @@ using System.Collections.Generic;
 
 namespace Blackbird.Models;
 
+/// <summary>How a link step ended: which linker ran, whether it ran because bb-linker handed over, and its exit code.</summary>
+public readonly record struct LinkOutcome(string Linker, bool FellBack, int ExitCode);
+
 public class BuildCommand
 {
     public string Executable { get; }
@@ -25,6 +28,18 @@ public class BuildCommand
 
     /// <summary>Runs instead when this step exits with one of bb-linker's "use the stock linker" codes.</summary>
     public BuildCommand? Fallback { get; init; }
+
+    /// <summary>
+    /// The project's <c>.stockcarry.json</c>, when it has one: the project depends on bb-linker's stock carry, so the
+    /// stock linker must never link it (it would drop the carried assets), whatever bb-linker exits with.
+    /// </summary>
+    public string? CarryMarker { get; init; }
+
+    /// <summary>For a link that would use the stock linker for a carry project: why it can't. The step fails with this instead of running.</summary>
+    public string? CarryBlockedReason { get; init; }
+
+    /// <summary>For a link: told how the step ended, for the components registry's last builds.</summary>
+    public System.Action<LinkOutcome>? OnLinked { get; init; }
 
     /// <summary>The step is bb-linker: it is given <c>-progress &lt;pipe&gt;</c> and its stage and percent are reported.</summary>
     public bool ReportsProgress { get; init; }

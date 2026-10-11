@@ -47,6 +47,23 @@ public partial class BuildService : IBuildService
         CancellationToken ct,
         IProgress<LinkerEvent>? linkerProgress)
     {
+        // A project that depends on stock carry is never linked by the stock linker: it would drop the carried assets.
+        // Checked before anything runs, so no compile is wasted on a build that can't link.
+        foreach (var step in commands)
+        {
+            var blocked = step.CarryBlockedReason;
+            if (blocked is null && step.CarryMarker is not null && step.Fallback is not null)
+            {
+                var info = await BbLinker.ProbeAsync(step.Executable).ConfigureAwait(false);
+                blocked = BbLinker.CarryBlockedReason(true, true, true, info?.HasStockCarry == true);
+            }
+            if (blocked is null)
+                continue;
+            progress.Report($"\n[launcher] {step.Description}: {blocked}\n");
+            step.OnLinked?.Invoke(new LinkOutcome(LinkerName(step), false, BbLinker.ExitStockCarry));
+            return false;
+        }
+
         bool allSucceeded = true;
         var queue = new List<BuildCommand>(commands);
 
@@ -205,7 +222,11 @@ public partial class BuildService : IBuildService
 
             // A link that ran to the end ("done:") can vouch for its outputs; one that crashed or was stopped can't.
             // A step that fell back to the stock linker leaves its stamps unwritten (the fallback writes its own).
-            if (captured is not null && !(command.Fallback is not null && BbLinker.MeansUseStock(process.ExitCode)))
+            // Only a bb-linker step has a say in falling back; it is told whether its project depends on stock carry.
+            var next = command.Fallback is null
+                ? BbLinker.Next.Accept
+                : BbLinker.AfterStep(process.ExitCode, command.CarryMarker is not null);
+            if (captured is not null && next == BbLinker.Next.Accept)
             {
                 string output;
                 lock (outputLock)
@@ -229,12 +250,24 @@ public partial class BuildService : IBuildService
                     ranGate.Forget();
             }
 
-            if (command.Fallback is { } fallback && BbLinker.MeansUseStock(process.ExitCode))
+            if (next == BbLinker.Next.UseStockLinker && command.Fallback is { } fallback)
             {
                 progress.Report($"\n[launcher] bb-linker can't link this yet (exit 0x{process.ExitCode:X8}), so the stock linker is linking it.\n");
                 queue.Insert(index + 1, fallback);
                 continue;
             }
+
+            if (next == BbLinker.Next.FailStockCarry)
+            {
+                progress.Report($"\n[launcher] {BbLinker.CarryFailureMessage(process.ExitCode)}\n");
+                command.OnLinked?.Invoke(new LinkOutcome(LinkerName(command), false, process.ExitCode));
+                allSucceeded = false;
+                if (!ignoreErrors)
+                    return false;
+                continue;
+            }
+
+            command.OnLinked?.Invoke(new LinkOutcome(LinkerName(command), false, process.ExitCode));
 
             // Non-zero with the linker's closing "done:" line means it ran to the end and only reported errors;
             // those are counted from the log, so the build lands as "completed with errors", not "failed".
@@ -249,6 +282,8 @@ public partial class BuildService : IBuildService
         ct.ThrowIfCancellationRequested();
         return allSucceeded;
     }
+
+    private static string LinkerName(BuildCommand command) => command.ReportsProgress ? "bb-linker" : "stock";
 
     private static async Task FlushOutputPeriodicallyAsync(
         StringBuilder outputBuffer,

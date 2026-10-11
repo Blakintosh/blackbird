@@ -1,0 +1,53 @@
+using System.Collections.Generic;
+
+namespace Blackbird.Models;
+
+public enum ComponentState
+{
+    /// <summary>Installed and doing its job.</summary>
+    Ready,
+
+    /// <summary>Installed or partly there, but something it needs is missing or old.</summary>
+    Attention,
+
+    /// <summary>Not installed.</summary>
+    Missing,
+}
+
+/// <summary>One line of the Components view: a Mod Tools app or part, what state it is in, and what it unlocks.</summary>
+public sealed class ComponentRow
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required ComponentState State { get; init; }
+
+    /// <summary>The state in a few words, with the version when known ("0.1.0 · index ready").</summary>
+    public required string StateText { get; init; }
+
+    /// <summary>What it unlocks, or what is needed to get it working.</summary>
+    public required string Detail { get; init; }
+
+    /// <summary>The link on the right ("Get MTPlugins"); installing from inside Blackbird comes later.</summary>
+    public string? ActionLabel { get; init; }
+    public string? ActionUrl { get; init; }
+
+    public bool IsReady => State == ComponentState.Ready;
+    public bool NeedsAttention => State == ComponentState.Attention;
+    public bool IsMissing => State == ComponentState.Missing;
+    public bool HasAction => ActionLabel is not null && ActionUrl is not null;
+}
+
+/// <summary>The Components view's content for one install.</summary>
+public sealed class ComponentsReport
+{
+    public required string InstallPath { get; init; }
+    public required IReadOnlyList<ComponentRow> Rows { get; init; }
+
+    /// <summary>Whether Blackbird can link stock assets by name, with no local copies.</summary>
+    public required bool UseDirectly { get; init; }
+
+    /// <summary>Why <see cref="UseDirectly"/> is what it is, in one sentence.</summary>
+    public required string UseDirectlyReason { get; init; }
+
+    public string UseDirectlyText => UseDirectly ? "Use directly is on" : "Use directly is off";
+}

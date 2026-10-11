@@ -1,0 +1,304 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Text.Json.Nodes;
+using Blackbird.Models;
+
+namespace Blackbird.Services;
+
+/// <summary>
+/// Finds the Mod Tools apps and parts installed for one Black Ops III install, for the Components view. Every app
+/// shows the same list. Detection reads the registry entries other apps write
+/// (<see cref="ComponentPaths"/>) and the known places their files go; a later step asks
+/// <c>stocklib status --json</c> for the index details.
+/// </summary>
+public static class ComponentScanner
+{
+    // The product pages. The parent brand's pages are where the Mod Tools apps are moving.
+    public const string ApexUrl = "https://bo3modtools.com/apex";
+    public const string UltrasoundUrl = "https://bo3modtools.com/ultrasound";
+    public const string DragonUrl = "https://bo3modtools.com/dragon";
+    public const string StockLibraryUrl = "https://bo3modtools.com/stock-library";
+    public const string MtPluginsUrl = "https://github.com/Aidan601/MTPlugins";
+
+    /// <summary>Reads the install. Touches the disk and runs <c>bb-linker -capabilities</c> (cached), so not on the UI thread.</summary>
+    public static ComponentsReport Scan(string gamePath, string toolsPath, bool useBbLinker)
+    {
+        var tools = string.IsNullOrWhiteSpace(toolsPath) ? gamePath : toolsPath;
+        var bin = Path.Combine(tools, "bin");
+        string Entry(string id) => ComponentPaths.Entry(gamePath, id);
+
+        var apex = Apex(bin, Entry("apex"));
+        var dragon = Dragon(tools, Entry("dragon"), useBbLinker);
+        var stock = StockLibrary(gamePath, bin, Entry("stocklib"));
+        var rows = new List<ComponentRow>
+        {
+            new()
+            {
+                Id = "blackbird",
+                Name = "Blackbird",
+                State = ComponentState.Ready,
+                StateText = $"{AppUpdates.CurrentVersion} · this app",
+                Detail = "Builds, runs and publishes your mods.",
+            },
+            apex.Row,
+            dragon.Row,
+            stock.Row,
+            Ultrasound(gamePath),
+            RadiantIntegration(bin, stock.Installed),
+        };
+
+        var (on, reason) = UseDirectly(dragon, stock, useBbLinker);
+        return new ComponentsReport { InstallPath = gamePath, Rows = rows, UseDirectly = on, UseDirectlyReason = reason };
+    }
+
+    private static (bool On, string Reason) UseDirectly(DragonInfo dragon, StockInfo stock, bool useBbLinker)
+    {
+        if (!dragon.Found)
+            return (false, "Dragon isn't installed, so only the stock linker is available.");
+        if (!dragon.CanCarry)
+            return (false, "This Dragon can't carry stock assets. Update it.");
+        if (!stock.Installed)
+            return (false, "Stock Library isn't installed, so Dragon has no index of the stock assets.");
+        if (!stock.HasIndex)
+            return (false, "The Stock Library index isn't built yet.");
+        if (!useBbLinker)
+            return (false, "Link with bb-linker is off in Tools. Projects that use stock assets won't build.");
+        return (true, "Stock assets link by name; Dragon carries them, so there are no copies to make.");
+    }
+
+    // ── Apex ────────────────────────────────────────────────────────────────
+
+    private static (ComponentRow Row, bool Found) Apex(string bin, string registryEntry)
+    {
+        var alongside = Path.Combine(bin, "Apex.exe");
+        var replacing = Path.Combine(bin, "asseteditor_modtools.exe");
+        var exe = File.Exists(alongside) ? alongside
+            : File.Exists(replacing) && ProductNameContains(replacing, "Apex") ? replacing
+            : null;
+        if (exe is null)
+            return (new ComponentRow
+            {
+                Id = "apex",
+                Name = "Apex",
+                State = ComponentState.Missing,
+                StateText = "not installed",
+                Detail = "Edit GDT assets with live previews, and make local copies of stock assets.",
+                ActionLabel = "Get Apex",
+                ActionUrl = ApexUrl,
+            }, false);
+
+        var version = RegistryText(registryEntry, "version") ?? ProductVersion(exe);
+        return (new ComponentRow
+        {
+            Id = "apex",
+            Name = "Apex",
+            State = ComponentState.Ready,
+            StateText = version is null ? "installed" : $"{version} · installed",
+            Detail = "Edit GDT assets with live previews, and make local copies of stock assets.",
+        }, true);
+    }
+
+    // ── Dragon (bb-linker) ──────────────────────────────────────────────────
+
+    private sealed record DragonInfo(ComponentRow Row, bool Found, bool CanCarry);
+
+    private static DragonInfo Dragon(string tools, string registryEntry, bool useBbLinker)
+    {
+        var exe = BbLinker.Locate(tools);
+        if (exe is null && RegistryText(registryEntry, "path") is { } registered && File.Exists(registered))
+            exe = registered;
+
+        if (exe is null)
+            return new DragonInfo(new ComponentRow
+            {
+                Id = "dragon",
+                Name = "Dragon",
+                State = ComponentState.Missing,
+                StateText = "not installed",
+                Detail = "A faster linker, and it links stock assets by name so you don't have to copy them.",
+                ActionLabel = "Get Dragon",
+                ActionUrl = DragonUrl,
+            }, false, false);
+
+        var info = BbLinker.Probe(exe);
+        var version = info?.Version ?? RegistryText(registryEntry, "version");
+        var prefix = version is null ? "installed" : $"{version} · installed";
+        if (info?.HasStockCarry == true)
+            return new DragonInfo(new ComponentRow
+            {
+                Id = "dragon",
+                Name = "Dragon",
+                State = ComponentState.Ready,
+                StateText = $"{prefix} · stock-carry",
+                Detail = useBbLinker
+                    ? "Blackbird links with Dragon, so stock assets can be used directly with no copies."
+                    : "Stock assets can be used with no copies, but Link with bb-linker is off in Tools.",
+            }, true, true);
+
+        return new DragonInfo(new ComponentRow
+        {
+            Id = "dragon",
+            Name = "Dragon",
+            State = ComponentState.Attention,
+            StateText = $"{prefix} · no stock-carry",
+            Detail = "This version links faster but can't use stock assets directly. Update it to carry them.",
+            ActionLabel = "Get Dragon",
+            ActionUrl = DragonUrl,
+        }, true, false);
+    }
+
+    // ── Stock Library ───────────────────────────────────────────────────────
+
+    private sealed record StockInfo(ComponentRow Row, bool Installed, bool HasIndex);
+
+    private static StockInfo StockLibrary(string gamePath, string bin, string registryEntry)
+    {
+        var exe = Path.Combine(bin, "stocklib", "stocklib.exe");
+        var installed = File.Exists(exe) || (RegistryText(registryEntry, "path") is { } p && File.Exists(p));
+        var db = new FileInfo(ComponentPaths.StockDb(gamePath));
+        if (!installed)
+            return new StockInfo(new ComponentRow
+            {
+                Id = "stocklib",
+                Name = "Stock Library",
+                State = ComponentState.Missing,
+                StateText = "not installed",
+                Detail = "Every stock asset in search, previews and Create local copy, and what Dragon links by name.",
+                ActionLabel = "Get Stock Library",
+                ActionUrl = StockLibraryUrl,
+            }, false, false);
+
+        var version = RegistryText(registryEntry, "version") ?? ProductVersion(exe);
+        var prefix = version is null ? "installed" : $"{version} · installed";
+        if (!db.Exists)
+            return new StockInfo(new ComponentRow
+            {
+                Id = "stocklib",
+                Name = "Stock Library",
+                State = ComponentState.Attention,
+                StateText = $"{prefix} · no index",
+                Detail = "The stock index isn't built yet. Apex and Radiant build it when they open.",
+            }, true, false);
+
+        return new StockInfo(new ComponentRow
+        {
+            Id = "stocklib",
+            Name = "Stock Library",
+            State = ComponentState.Ready,
+            StateText = $"{prefix} · index {db.LastWriteTime:d MMM yyyy}",
+            Detail = "Stock assets in search, previews and Create local copy.",
+        }, true, true);
+    }
+
+    // ── Ultrasound ──────────────────────────────────────────────────────────
+
+    private static ComponentRow Ultrasound(string gamePath)
+    {
+        var converter = Path.Combine(gamePath, "sound", "snd_convert.exe");
+        if (File.Exists(converter) && ProductNameContains(converter, "Ultrasound"))
+            return new ComponentRow
+            {
+                Id = "ultrasound",
+                Name = "Ultrasound",
+                State = ComponentState.Ready,
+                StateText = ProductVersion(converter) is { } v ? $"{v} · installed" : "installed",
+                Detail = "Replaces the Mod Tools sound converter.",
+            };
+
+        return new ComponentRow
+        {
+            Id = "ultrasound",
+            Name = "Ultrasound",
+            State = ComponentState.Missing,
+            StateText = "not installed",
+            Detail = "Replaces the Mod Tools sound converter.",
+            ActionLabel = "Get Ultrasound",
+            ActionUrl = UltrasoundUrl,
+        };
+    }
+
+    // ── Radiant integration ─────────────────────────────────────────────────
+
+    private static ComponentRow RadiantIntegration(string bin, bool stockInstalled)
+    {
+        var host = File.Exists(Path.Combine(bin, "plugins", "RadiantPlugins.dll"));
+        var plugin = File.Exists(Path.Combine(bin, "plugins", "StockLibrary", "StockLibrary.dll"));
+        if (host && plugin)
+            return new ComponentRow
+            {
+                Id = "radiant",
+                Name = "Radiant integration",
+                State = ComponentState.Ready,
+                StateText = "MTPlugins + StockLibrary plugin",
+                Detail = "Stock models in Radiant's model browser, and dragging one in links without a copy.",
+            };
+
+        if (host)
+            return new ComponentRow
+            {
+                Id = "radiant",
+                Name = "Radiant integration",
+                State = ComponentState.Attention,
+                StateText = "MTPlugins found · no StockLibrary plugin",
+                // TODO(installer): the Stock Library installer adds the plugin; offer that here once Blackbird can run it.
+                Detail = stockInstalled
+                    ? "The StockLibrary plugin adds stock models to Radiant's model browser. Reinstall Stock Library to add it."
+                    : "The StockLibrary plugin comes with Stock Library and adds stock models to Radiant's model browser.",
+            };
+
+        return new ComponentRow
+        {
+            Id = "radiant",
+            Name = "Radiant integration",
+            State = ComponentState.Attention,
+            StateText = "MTPlugins not found",
+            Detail = "Stock models in Radiant's model browser need MTPlugins, a free Radiant plugin host.",
+            ActionLabel = "Get MTPlugins",
+            ActionUrl = MtPluginsUrl,
+        };
+    }
+
+    // ── Reading ─────────────────────────────────────────────────────────────
+
+    private static string? RegistryText(string path, string key)
+    {
+        try
+        {
+            return File.Exists(path) && JsonNode.Parse(File.ReadAllText(path)) is JsonObject root
+                && root[key] is JsonValue value && value.TryGetValue<string>(out var text) && !string.IsNullOrWhiteSpace(text)
+                ? text
+                : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            return null; // an entry another app is rewriting, or one that isn't JSON: treated as absent
+        }
+    }
+
+    private static bool ProductNameContains(string exe, string word)
+    {
+        try
+        {
+            return FileVersionInfo.GetVersionInfo(exe).ProductName?.Contains(word, StringComparison.OrdinalIgnoreCase) == true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static string? ProductVersion(string exe)
+    {
+        try
+        {
+            var text = FileVersionInfo.GetVersionInfo(exe).ProductVersion?.Split('+')[0].Trim();
+            return string.IsNullOrEmpty(text) ? null : text;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+}

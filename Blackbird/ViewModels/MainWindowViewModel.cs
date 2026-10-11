@@ -31,6 +31,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IFileSystemService _fileSystem;
     private readonly IBuildService _buildService;
     private readonly ISettingsService _settings;
+    private readonly ComponentRegistry _componentRegistry;
 
     private CancellationTokenSource? _buildCts;
 
@@ -1137,6 +1138,7 @@ public partial class MainWindowViewModel : ObservableObject
         _fileSystem = fileSystem;
         _buildService = buildService;
         _settings = settings;
+        _componentRegistry = new ComponentRegistry(() => _fileSystem.GamePath, () => _fileSystem.ToolsPath, () => _settings.UseBbLinker);
 
         QuickLaunchMaps.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasQuickLaunchMapOptions));
         _settingsSaveTimer.Tick += (_, _) => _ = SaveSettingsInBackgroundAsync();
@@ -1868,7 +1870,7 @@ public partial class MainWindowViewModel : ObservableObject
     public bool IsThemeLight => Theme == ThemeChoice.Light;
 
     /// <summary>Tools > Link with bb-linker: shown only when bb-linker is installed beside the launcher.</summary>
-    public bool IsBbLinkerInstalled => BbLinker.InstalledPath is not null;
+    public bool IsBbLinkerInstalled => BbLinker.Locate(_fileSystem.ToolsPath) is not null;
 
     public bool UseBbLinker
     {
@@ -1879,9 +1881,17 @@ public partial class MainWindowViewModel : ObservableObject
             {
                 _settings.UseBbLinker = value;
                 QueueSettingsSave();
+                _ = _componentRegistry.WriteAsync();
             }
             OnPropertyChanged();
         }
+    }
+
+    /// <summary>What the Components view shows for the current install. Reads the disk; the result is a snapshot.</summary>
+    public Task<ComponentsReport> ScanComponentsAsync()
+    {
+        var (game, tools, useBbLinker) = (_fileSystem.GamePath, _fileSystem.ToolsPath, _settings.UseBbLinker);
+        return Task.Run(() => ComponentScanner.Scan(game, tools, useBbLinker));
     }
 
     [RelayCommand]
@@ -3168,19 +3178,37 @@ public partial class MainWindowViewModel : ObservableObject
         ref LinkStampEnvironment? environment)
     {
         var linker = Path.Combine(_fileSystem.ToolsPath, "bin", "linker_modtools.exe");
-        if (linkOnly)
+        var project = Path.GetFileName(projectFolder);
+        var bbLinker = BbLinker.Locate(_fileSystem.ToolsPath);
+
+        // A project that bb-linker carried stock assets into has a marker; the stock linker can't link it.
+        var carryMarker = BbLinker.CarryMarkerPath(projectFolder, zoneName);
+        var dependsOnCarry = File.Exists(carryMarker);
+        var useBbLinker = _settings.UseBbLinker && bbLinker is not null;
+
+        Action<LinkOutcome> Record(bool fellBack) =>
+            outcome => _ = _componentRegistry.RecordBuildAsync(project, outcome with { FellBack = fellBack });
+
+        // Prepare for publish links with the stock linker alone, except when the project needs bb-linker to link at all.
+        if (linkOnly && !(dependsOnCarry && useBbLinker))
         {
-            commands.Add(new BuildCommand(linker, [.. languageArgs, .. extraArgs, "-modsource", zoneName], description)
+            List<string> linkOnlyArgs = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
+            commands.Add(new BuildCommand(linker, linkOnlyArgs, description)
             {
                 PatchUmbraWait = isMap,
+                CarryMarker = dependsOnCarry ? carryMarker : null,
+                CarryBlockedReason = dependsOnCarry
+                    ? BbLinker.CarryBlockedReason(true, _settings.UseBbLinker, bbLinker is not null, true)
+                    : null,
+                OnLinked = Record(fellBack: false),
             });
             return;
         }
 
         // bb-linker links the main and localized zones in one process, with its own incremental builds,
-        // and hands anything it can't link yet to the stock linker.
+        // and hands anything it can't link yet to the stock linker (but never a project that needs stock carry).
         environment ??= new LinkStampEnvironment(_fileSystem.GamePath, _fileSystem.ToolsPath);
-        if (_settings.UseBbLinker && BbLinker.InstalledPath is { } bbLinker)
+        if (useBbLinker && bbLinker is { } bbExe)
         {
             List<string> args = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
             var languages = languageArgs.Where((_, i) => i % 2 == 1).ToList();
@@ -3190,13 +3218,33 @@ public partial class MainWindowViewModel : ObservableObject
                 new LinkStamp(shared, projectFolder, zoneName, language: null, BuildCommand.FormatCommand(exe, args)),
                 .. languages.Select(lang => new LinkStamp(shared, projectFolder, zoneName, lang, BuildCommand.FormatCommand(exe, args))),
             ];
-            commands.Add(new BuildCommand(bbLinker, args, $"{description} (bb-linker)")
+            commands.Add(new BuildCommand(bbExe, args, $"{description} (bb-linker)")
             {
                 // A real build: bb-linker may run snd_convert on the project, as the stock linker does.
                 Environment = new Dictionary<string, string> { ["BBL_REAL_BUILD"] = "1" },
                 ReportsProgress = true,
-                LinkStamps = Stamps(bbLinker),
-                Fallback = new BuildCommand(linker, args, description) { PatchUmbraWait = isMap, LinkStamps = Stamps(linker) },
+                LinkStamps = Stamps(bbExe),
+                CarryMarker = dependsOnCarry ? carryMarker : null,
+                OnLinked = Record(fellBack: false),
+                Fallback = new BuildCommand(linker, args, description)
+                {
+                    PatchUmbraWait = isMap,
+                    LinkStamps = Stamps(linker),
+                    OnLinked = Record(fellBack: true),
+                },
+            });
+            return;
+        }
+
+        if (dependsOnCarry)
+        {
+            // Setting off or bb-linker missing: the stock linker would drop the carried assets, so the build says so instead.
+            List<string> blockedArgs = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
+            commands.Add(new BuildCommand(linker, blockedArgs, description)
+            {
+                CarryMarker = carryMarker,
+                CarryBlockedReason = BbLinker.CarryBlockedReason(true, _settings.UseBbLinker, bbLinker is not null, true),
+                OnLinked = Record(fellBack: false),
             });
             return;
         }
@@ -3206,6 +3254,7 @@ public partial class MainWindowViewModel : ObservableObject
         {
             PatchUmbraWait = isMap,
             LinkStamps = [new LinkStamp(environment, projectFolder, zoneName, language: null, BuildCommand.FormatCommand(linker, main))],
+            OnLinked = Record(fellBack: false),
         });
 
         foreach (var language in languageArgs.Where((_, i) => i % 2 == 1))
@@ -3625,6 +3674,8 @@ public partial class MainWindowViewModel : ObservableObject
         // A full rescan supersedes any quick re-check still in flight.
         _toolAvailabilityVersion++;
         _toolsChecked = true;
+        if (updateIcons)
+            _ = _componentRegistry.WriteAsync(); // a full scan is a start or a changed install: the registry follows
         _steamExecutablePath = tools.SteamExecutablePath;
         IsAssetEditorAvailable = tools.AssetEditorAvailable;
         IsRadiantAvailable = tools.RadiantAvailable;
