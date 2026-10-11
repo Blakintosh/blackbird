@@ -54,6 +54,7 @@ internal static class Scenarios
         ProjectInfoAndRename();
         OtherProjectDialogs();
         SetupDialogs();
+        StockScenario.Run(_main, _vm, _settings);
         Messages();
         Publish();
         EmptyStates();

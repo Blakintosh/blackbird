@@ -70,6 +70,8 @@
                               ToolTip.Tip="Link with the Rust linker, which is faster on rebuilds. Anything it can't link yet falls back to the stock linker."/>
                     <Separator/>
                     <MenuItem Header="Setup _Doctor…" Click="OnSetupDoctorClick"/>
+                    <MenuItem Header="_Components…" Click="OnComponentsClick"
+                              ToolTip.Tip="The Mod Tools apps installed for this game, and what they unlock"/>
                     <Separator/>
                     <MenuItem Header="Open game _folder" Command="{Binding OpenGameRootCommand}"/>
                     <MenuItem Header="Open _Mod Tools folder" Command="{Binding OpenToolsRootCommand}"/>

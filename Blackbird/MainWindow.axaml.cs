@@ -467,6 +467,7 @@ public partial class MainWindow : Window
 
         yield return PaletteAction("new-map", "New map or mod…", "Create a map from a template, or a mod with the zones you pick", "new create map mod template zone add", 10, shortcut: "Ctrl+N");
         yield return PaletteAction("setup-doctor", "Setup Doctor…", "Check the game and Mod Tools folders", "setup doctor paths tools health fix diagnose", 20);
+        yield return PaletteAction("components", "Components…", "The Mod Tools apps installed for this game, and what they unlock", "components apex dragon stock library ultrasound radiant plugins mtplugins bb-linker linker carry installed", 21);
         yield return PaletteAction("asset-editor", "Asset Editor", "Open AssetEditor_modtools.exe", "ape asset editor tools gdt gdtdb", 30, shortcut: "Ctrl+Shift+A");
         yield return PaletteAction("radiant", "Radiant", "Open the Radiant level editor", "radiant level editor tools map edit", 31, shortcut: "Ctrl+Shift+R");
 
@@ -645,6 +646,7 @@ public partial class MainWindow : Window
             "select-all-build-steps" or "save-build-preset" or "set-build-mode-build" or "set-build-mode-build-run"
                 or "set-build-mode-ignore-errors" => vm.CanEditBuildOptions,
             "new-map" => !_isOpeningNewItem,
+            "components" => !_isOpeningComponents,
             "project-details" => !_isOpeningProjectInfo,
             "open-zone" => vm.HasZoneFile,
             "open-zone-source-folder" => vm.HasZoneSourceFolder,
@@ -736,6 +738,9 @@ public partial class MainWindow : Window
                 break;
             case "setup-doctor":
                 await ShowSetupDoctorAsync(showOnlyIfUnhealthy: false);
+                break;
+            case "components":
+                await ShowComponentsAsync();
                 break;
             case "asset-editor":
                 ViewModel.OpenAssetEditorCommand.Execute(null);
@@ -1049,6 +1054,11 @@ public partial class MainWindow : Window
         mainVm.RunOptions = vm.RunOptions;
     }
 
+
+    private async void OnComponentsClick(object? sender, RoutedEventArgs e)
+    {
+        await ShowComponentsAsync();
+    }
 
     private async void OnSetupDoctorClick(object? sender, RoutedEventArgs e)
     {
@@ -1665,6 +1675,26 @@ public partial class MainWindow : Window
         _closeDuringPublishConfirmed = true;
         _publishCts?.Cancel();
         Close();
+    }
+
+    private bool _isOpeningComponents;
+
+    /// <summary>The Components view, over a scan of this install taken off the UI thread.</summary>
+    private async System.Threading.Tasks.Task ShowComponentsAsync()
+    {
+        if (ViewModel is not { } vm || _isOpeningComponents)
+            return;
+
+        _isOpeningComponents = true;
+        try
+        {
+            var report = await vm.ScanComponentsAsync();
+            await new ComponentsDialog { DataContext = new ComponentsDialogViewModel(report) }.ShowDialog(this);
+        }
+        finally
+        {
+            _isOpeningComponents = false;
+        }
     }
 
     /// <summary>

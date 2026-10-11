@@ -71,6 +71,12 @@ internal sealed class FakeBuild : IBuildService
 
     public int Runs { get; private set; }
 
+    /// <summary>The commands of the latest build, as the view model planned them.</summary>
+    public List<BuildCommand> LastCommands { get; private set; } = [];
+
+    /// <summary>Whether the build succeeds; false to show how a failed one lands.</summary>
+    public bool Result { get; set; } = true;
+
     /// <summary>What the build prints after the gate; the log with errors when null.</summary>
     public string[]? Tail { get; set; }
 
@@ -81,6 +87,7 @@ internal sealed class FakeBuild : IBuildService
         CancellationToken ct, IProgress<LinkerEvent>? linkerProgress = null)
     {
         Runs++;
+        LastCommands = commands;
         foreach (var line in FakeInstall.BuildLogHead)
             progress.Report(line + "\n");
         await Task.Delay(30, ct);
@@ -93,7 +100,7 @@ internal sealed class FakeBuild : IBuildService
         foreach (var line in Tail ?? FakeInstall.BuildLogTail)
             progress.Report(line + "\n");
         await Task.Yield(); // the reports are queued on the UI thread; finish behind them, as a real process exit does
-        return true;
+        return Result;
     }
 }
 

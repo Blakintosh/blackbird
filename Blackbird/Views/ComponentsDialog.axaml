@@ -1,0 +1,84 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Blackbird.ViewModels"
+        xmlns:models="using:Blackbird.Models"
+        xmlns:views="using:Blackbird.Views"
+        x:Class="Blackbird.Views.ComponentsDialog"
+        x:DataType="vm:ComponentsDialogViewModel"
+        WindowStartupLocation="CenterOwner"
+        Classes="dialog tool"
+        Title="Components"
+        Width="780" Height="660"
+        MinWidth="620" MinHeight="460"
+        CanResize="True">
+
+    <views:DialogShell Title="Components"
+                       Subtitle="{Binding InstallPath, StringFormat='Installed for {0}'}">
+        <views:DialogShell.Status>
+            <Panel>
+                <TextBlock Classes="status"
+                           Text="Stock Library and Dragon are picked up automatically when they are installed."
+                           IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNullOrEmpty}}"/>
+                <TextBlock Classes="error" Text="{Binding ErrorMessage}"/>
+            </Panel>
+        </views:DialogShell.Status>
+        <views:DialogShell.Footer>
+            <StackPanel Classes="dialog-buttons">
+                <Button Name="CloseButton" Content="Close"
+                        Click="OnCloseClick"
+                        IsCancel="True"
+                        Theme="{StaticResource AccentButton}"/>
+            </StackPanel>
+        </views:DialogShell.Footer>
+
+        <DockPanel>
+            <!-- Whether stock assets link by name, and the one reason why or why not. -->
+            <Border DockPanel.Dock="Top" Classes="banner" Classes.ok="{Binding UseDirectly}" Classes.warning="{Binding UseDirectlyOff}"
+                    Padding="14,10" Margin="0,0,0,12" Name="UseDirectlyBanner">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="section" Text="{Binding UseDirectlyText}"/>
+                    <TextBlock Classes="hint" Text="{Binding UseDirectlyReason}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card" Padding="4">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="models:ComponentRow">
+                                <Border Classes="version-row" Padding="12,8">
+                                    <Grid ColumnDefinitions="24,236,*,Auto" ColumnSpacing="12">
+                                        <Panel VerticalAlignment="Top" Margin="0,2,0,0">
+                                            <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                                       Classes="row-icon-ok" IsVisible="{Binding IsReady}"/>
+                                            <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                                       Classes="row-icon-warning" IsVisible="{Binding NeedsAttention}"/>
+                                            <TextBlock Text="&#xEA3A;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                                       Classes="hint" IsVisible="{Binding IsMissing}"/>
+                                        </Panel>
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Text="{Binding Name}" FontWeight="Medium"/>
+                                            <TextBlock Classes="hint mono" Text="{Binding StateText}"/>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{Binding Detail}" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource ForegroundPrimary}"/>
+                                        <Button Grid.Column="3" Classes="link"
+                                                Theme="{StaticResource ToolbarButton}"
+                                                MinWidth="104"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Top"
+                                                Content="{Binding ActionLabel}"
+                                                IsVisible="{Binding HasAction}"
+                                                Command="{Binding $parent[ItemsControl].((vm:ComponentsDialogViewModel)DataContext).OpenActionCommand}"
+                                                CommandParameter="{Binding}"
+                                                ToolTip.Tip="{Binding ActionUrl}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+        </DockPanel>
+    </views:DialogShell>
+</Window>
