@@ -863,7 +863,9 @@
                                  Background="Transparent"
                                  Foreground="{DynamicResource AccentIndicator}"
                                  IsVisible="{Binding IsBuildRunning}"
-                                 IsIndeterminate="{Binding IsBuildRunning}"/>
+                                 IsIndeterminate="{Binding IsBuildBarIndeterminate}"
+                                 Minimum="0" Maximum="100"
+                                 Value="{Binding BuildProgressPercent}"/>
                 </Panel>
 
                 <Grid>

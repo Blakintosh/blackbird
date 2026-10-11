@@ -195,6 +195,21 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private bool _isProjectScanRunning = true;
     [ObservableProperty] private bool _isBuildCancelling;
     [ObservableProperty] private string _buildActivityText = "";
+
+    /// <summary>The linker's own estimate for the step running now, or null (no linker progress: the bar just animates).</summary>
+    private LinkerProgress? _linkerProgress;
+
+    /// <summary>0 to 100 for the status bar's progress line; meaningful while <see cref="HasBuildProgress"/>.</summary>
+    [ObservableProperty] private double _buildProgressPercent;
+    [ObservableProperty] private bool _hasBuildProgress;
+
+    /// <summary>
+    /// The bar animates only while a build runs and the linker has no percent for it. Never true at rest:
+    /// an indeterminate bar keeps animating even when hidden.
+    /// </summary>
+    public bool IsBuildBarIndeterminate => IsBuildRunning && !HasBuildProgress;
+
+    partial void OnHasBuildProgressChanged(bool value) => OnPropertyChanged(nameof(IsBuildBarIndeterminate));
     [ObservableProperty] private string _projectSearchText = "";
     [ObservableProperty] private int _selectedProjectFilterIndex;
     [ObservableProperty] private string _selectedQuickLaunchMap = NoQuickLaunchMapLabel;
@@ -613,6 +628,7 @@ public partial class MainWindowViewModel : ObservableObject
         NotifyBuildStateChanged();
         OnPropertyChanged(nameof(StatusLine));
         OnPropertyChanged(nameof(StatusKind));
+        OnPropertyChanged(nameof(IsBuildBarIndeterminate));
     }
 
     partial void OnIsBuildCancellingChanged(bool value) => NotifyBuildStateChanged();
@@ -1797,6 +1813,9 @@ public partial class MainWindowViewModel : ObservableObject
         _buildActivityTimer.Stop();
         _buildActivityStopwatch.Stop();
         BuildActivityText = "";
+        _linkerProgress = null;
+        HasBuildProgress = false;
+        BuildProgressPercent = 0;
     }
 
     private void UpdateBuildActivityText()
@@ -1808,7 +1827,32 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         var label = IsBuildCancelling ? "Cancelling" : "Building";
-        BuildActivityText = $"{label} \u00b7 {FormatElapsed(_buildActivityStopwatch.Elapsed)}";
+        var elapsed = FormatElapsed(_buildActivityStopwatch.Elapsed);
+        BuildActivityText = _linkerProgress is { } linker && !IsBuildCancelling
+            ? $"{label} \u00b7 {linker.Describe()} \u00b7 {elapsed}"
+            : $"{label} \u00b7 {elapsed}";
+    }
+
+    private void OnLinkerEvent(LinkerEvent ev)
+    {
+        switch (ev)
+        {
+            case LinkerProgress progress:
+                SetLinkerProgress(progress);
+                break;
+
+            case LinkerStepEnded:
+                SetLinkerProgress(null);
+                break;
+        }
+    }
+
+    private void SetLinkerProgress(LinkerProgress? progress)
+    {
+        _linkerProgress = progress;
+        HasBuildProgress = progress is not null && IsBuildRunning;
+        BuildProgressPercent = progress?.Percent ?? 0;
+        UpdateBuildActivityText();
     }
 
     private static string FormatElapsed(TimeSpan elapsed) =>
@@ -2820,10 +2864,12 @@ public partial class MainWindowViewModel : ObservableObject
             CountDiagnostics(text);
         });
 
+        var linkerProgress = new Progress<LinkerEvent>(OnLinkerEvent);
+
         string buildStatus;
         try
         {
-            var success = await _buildService.RunBuildAsync(commands, ignoreErrors, progress, buildToken);
+            var success = await _buildService.RunBuildAsync(commands, ignoreErrors, progress, buildToken, linkerProgress);
             buildToken.ThrowIfCancellationRequested();
 
             // The mod tools sometimes exit 0 despite printing errors, so a clean
@@ -3148,6 +3194,7 @@ public partial class MainWindowViewModel : ObservableObject
             {
                 // A real build: bb-linker may run snd_convert on the project, as the stock linker does.
                 Environment = new Dictionary<string, string> { ["BBL_REAL_BUILD"] = "1" },
+                ReportsProgress = true,
                 LinkStamps = Stamps(bbLinker),
                 Fallback = new BuildCommand(linker, args, description) { PatchUmbraWait = isMap, LinkStamps = Stamps(linker) },
             });

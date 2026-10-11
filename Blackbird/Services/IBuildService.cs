@@ -12,5 +12,6 @@ public interface IBuildService
         List<BuildCommand> commands,
         bool ignoreErrors,
         IProgress<string> progress,
-        CancellationToken ct);
+        CancellationToken ct,
+        IProgress<LinkerEvent>? linkerProgress = null);
 }

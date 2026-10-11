@@ -23,13 +23,14 @@ public partial class BuildService : IBuildService
         List<BuildCommand> commands,
         bool ignoreErrors,
         IProgress<string> progress,
-        CancellationToken ct)
+        CancellationToken ct,
+        IProgress<LinkerEvent>? linkerProgress = null)
     {
         // Link stamps are written while the next step runs; the build isn't over until they're on disk.
         var stampWrites = new List<Task>();
         try
         {
-            return await RunCommandsAsync(commands, ignoreErrors, progress, stampWrites, ct).ConfigureAwait(false);
+            return await RunCommandsAsync(commands, ignoreErrors, progress, stampWrites, ct, linkerProgress).ConfigureAwait(false);
         }
         finally
         {
@@ -43,7 +44,8 @@ public partial class BuildService : IBuildService
         bool ignoreErrors,
         IProgress<string> progress,
         List<Task> stampWrites,
-        CancellationToken ct)
+        CancellationToken ct,
+        IProgress<LinkerEvent>? linkerProgress)
     {
         bool allSucceeded = true;
         var queue = new List<BuildCommand>(commands);
@@ -136,8 +138,30 @@ public partial class BuildService : IBuildService
                     AppendOutputLine(outputBuffer, outputLock, e.Data, tail, captured);
             };
 
+            LinkerProgressListener? progressListener = null;
             try
             {
+                if (command.ReportsProgress && linkerProgress is not null
+                    && await BbLinker.SupportsAsync(command.Executable, "-progress").ConfigureAwait(false))
+                {
+                    try
+                    {
+                        // Anything but a progress tick is a boundary: the log up to it is shown before it is.
+                        progressListener = new LinkerProgressListener(ev =>
+                        {
+                            if (ev is not LinkerProgress)
+                                FlushOutput(outputBuffer, outputLock, progress);
+                            linkerProgress.Report(ev);
+                        });
+                        psi.ArgumentList.Add("-progress");
+                        psi.ArgumentList.Add(progressListener.Target);
+                    }
+                    catch (IOException)
+                    {
+                        // No pipe, no progress; the build itself doesn't need it.
+                    }
+                }
+
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
@@ -165,6 +189,12 @@ public partial class BuildService : IBuildService
             }
             finally
             {
+                if (progressListener is not null)
+                {
+                    await progressListener.DisposeAsync().ConfigureAwait(false);
+                    linkerProgress?.Report(LinkerStepEnded.Instance);
+                }
+
                 outputFlushCts.Cancel();
                 try { await outputFlushTask.ConfigureAwait(false); }
                 catch (OperationCanceledException) { }

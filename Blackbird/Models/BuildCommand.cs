@@ -26,6 +26,9 @@ public class BuildCommand
     /// <summary>Runs instead when this step exits with one of bb-linker's "use the stock linker" codes.</summary>
     public BuildCommand? Fallback { get; init; }
 
+    /// <summary>The step is bb-linker: it is given <c>-progress &lt;pipe&gt;</c> and its stage and percent are reported.</summary>
+    public bool ReportsProgress { get; init; }
+
     /// <summary>Extra environment variables for the step's process.</summary>
     public IReadOnlyDictionary<string, string>? Environment { get; init; }
 
