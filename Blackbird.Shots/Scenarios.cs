@@ -48,6 +48,7 @@ internal static class Scenarios
         LogFind();
         LogFollows();
         Building();
+        LinkerPipe();
         CommandPalette();
         LaunchSettings();
         ProjectInfoAndRename();
@@ -250,13 +251,42 @@ internal static class Scenarios
         Pump(100);
     }
 
+    private static void LinkerPipe()
+    {
+        var seen = new System.Collections.Generic.List<LinkerEvent>();
+        var listener = new LinkerProgressListener(p => { lock (seen) seen.Add(p); });
+        Task.Run(async () =>
+        {
+            await using var client = new System.IO.Pipes.NamedPipeClientStream(".", listener.Target[@"\.\pipe\".Length..], System.IO.Pipes.PipeDirection.Out);
+            await client.ConnectAsync(2000);
+            await using var writer = new System.IO.StreamWriter(client) { AutoFlush = true };
+            await writer.WriteLineAsync("{\"v\":1,\"event\":\"hello\",\"tool\":\"dragon\"}");
+            await writer.WriteLineAsync("{\"v\":1,\"event\":\"run\",\"zones\":2}");
+            await writer.WriteLineAsync("{\"v\":1,\"event\":\"zone\",\"zone\":\"zm_foundry\",\"unit\":\"\",\"language\":null,\"index\":0,\"count\":2}");
+            await writer.WriteLineAsync("not json");
+            await writer.WriteLineAsync("{\"v\":1,\"event\":\"progress\",\"pct\":12.5,\"label\":\"Planning\",\"done\":0,\"total\":null,\"eta\":null}");
+            await writer.WriteLineAsync("{\"v\":1,\"event\":\"end\",\"pct\":100,\"exit_code\":0}");
+        }).GetAwaiter().GetResult();
+        listener.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        LinkerEvent[] got;
+        lock (seen) got = [.. seen];
+        Check($"linker progress: events cross a real named pipe ({got.Length} events, '{(got.FirstOrDefault() as LinkerProgress)?.Describe()}')",
+            got.Length == 2 && got[0] is LinkerProgress { Percent: 12.5 } first && first.Describe() == "12% · Planning · zm_foundry"
+            && got[1] is LinkerProgress { Percent: 100 });
+    }
+
     private static void Building()
     {
         Build.Gate = new TaskCompletionSource();
+        Build.LinkerSnapshot = new LinkerProgress(41.3, "Converting assets", "zm_foundry (german)", 1, 2, 812, 1900, 17.2);
         _vm.BuildOnlyOnceCommand.Execute(null);
         WaitFor(() => _vm.IsBuildRunning && _vm.Output.Text.Contains("Compiling BSP"));
+        WaitFor(() => _vm.HasBuildProgress);
         Pump(250);
         Check("build: Ctrl+B's command starts a build that streams into the log", _vm.IsBuildRunning);
+        Check($"status bar: the linker's progress joins the one line ('{_vm.StatusLine}')",
+            _vm.StatusLine.StartsWith("Building · 41% · Converting assets 812 of 1,900 · zm_foundry (german) · 17s left · ", StringComparison.Ordinal)
+            && Math.Abs(_vm.BuildProgressPercent - 41.3) < 0.01);
         Check($"status bar: a running build shows once, as the progress line, with no glyph beside it ('{_vm.StatusKind}')", _vm.StatusKind == "");
         Check("picker: switching project waits for the build, and the picker says so", !_vm.CanSwitchProject);
         Shot(_main, "main-building");
@@ -277,7 +307,10 @@ internal static class Scenarios
         Build.Gate.SetResult();
         Build.Gate = null;
         WaitFor(() => !_vm.IsBuildRunning);
+        Build.LinkerSnapshot = null;
         Pump(150);
+        Check("status bar: the linker's progress is gone once the build is", !_vm.HasBuildProgress && _vm.BuildProgressPercent == 0);
+
         Check($"build: finishing counts the log's errors and warnings ({_vm.ErrorCount}, {_vm.WarningCount})",
             _vm.ErrorCount == 2 && _vm.WarningCount == 3);
         Check($"status bar: errors show the error glyph on a neutral bar ({_vm.StatusKind})", _vm.StatusKind == "error");
@@ -886,7 +919,7 @@ internal static class Scenarios
         Check($"publish: Prepare now starts without a confirmation (XPaks go to the Recycle Bin) (runs {Build.Runs - runs}, error '{pvm.ErrorMessage}')",
             dialog.OwnedWindows.All(w => !w.IsVisible) && Build.Runs == runs + 1);
         WaitFor(() => !_vm.IsBuildRunning && pvm.DraftStatusText.StartsWith("Prepare for publish", StringComparison.Ordinal), 6000);
-        Check($"publish: Prepare for publish reports back in the dialog ('{pvm.DraftStatusText}')",
+        Check($"publish: Prepare for publish reports back in the dialog ('{pvm.DraftStatusText}', running {_vm.IsBuildRunning}, preparing {_vm.IsPreparingForPublish}, err '{pvm.ErrorMessage}', log '{_vm.Output.Text.Replace(System.Environment.NewLine, "|")}')",
             pvm.DraftStatusText.StartsWith("Prepare for publish finished", StringComparison.Ordinal));
         Pump(150);
     }

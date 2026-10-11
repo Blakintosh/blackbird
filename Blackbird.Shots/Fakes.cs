@@ -74,13 +74,18 @@ internal sealed class FakeBuild : IBuildService
     /// <summary>What the build prints after the gate; the log with errors when null.</summary>
     public string[]? Tail { get; set; }
 
+    /// <summary>Reported as the linker's progress once the log head is out, as bb-linker would mid-link.</summary>
+    public LinkerProgress? LinkerSnapshot { get; set; }
+
     public async Task<bool> RunBuildAsync(List<BuildCommand> commands, bool ignoreErrors, IProgress<string> progress,
-        CancellationToken ct)
+        CancellationToken ct, IProgress<LinkerEvent>? linkerProgress = null)
     {
         Runs++;
         foreach (var line in FakeInstall.BuildLogHead)
             progress.Report(line + "\n");
         await Task.Delay(30, ct);
+        if (LinkerSnapshot is { } snapshot)
+            linkerProgress?.Report(snapshot);
 
         if (Gate is { } gate)
             await gate.Task.WaitAsync(ct);
