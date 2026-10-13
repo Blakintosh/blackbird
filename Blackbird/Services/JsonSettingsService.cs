@@ -41,6 +41,7 @@ public class JsonSettingsService : ISettingsService
     public string Theme { get; set; } = nameof(ThemeChoice.System);
     public bool UseBbLinker { get; set; } = true;
     public DateTime? LastUpdateCheckUtc { get; set; }
+    public bool CheckComponentUpdates { get; set; } = true;
 
     public JsonSettingsService()
     {
@@ -163,6 +164,7 @@ public class JsonSettingsService : ISettingsService
         Theme = data.Theme ?? nameof(ThemeChoice.System);
         UseBbLinker = data.UseBbLinker ?? true;
         LastUpdateCheckUtc = data.LastUpdateCheckUtc;
+        CheckComponentUpdates = data.CheckComponentUpdates ?? true;
     }
 
 
@@ -197,6 +199,7 @@ public class JsonSettingsService : ISettingsService
             Theme = Theme,
             UseBbLinker = UseBbLinker,
             LastUpdateCheckUtc = LastUpdateCheckUtc,
+            CheckComponentUpdates = CheckComponentUpdates,
         };
 
         return (Interlocked.Increment(ref _latestSnapshot), JsonSerializer.Serialize(data, SerializerOptions));
@@ -269,5 +272,6 @@ public class JsonSettingsService : ISettingsService
         public string? Theme { get; set; } = nameof(ThemeChoice.System);
         public bool? UseBbLinker { get; set; } = true;
         public DateTime? LastUpdateCheckUtc { get; set; }
+        public bool? CheckComponentUpdates { get; set; } = true;
     }
 }

@@ -28,6 +28,8 @@ public interface ISettingsService
     bool UseBbLinker { get; set; }
     /// <summary>When the automatic update check last ran; it runs at most once a day.</summary>
     DateTime? LastUpdateCheckUtc { get; set; }
+    /// <summary>Check for Dragon and Stock Library updates along with Blackbird's own. On by default.</summary>
+    bool CheckComponentUpdates { get; set; }
 
     /// <summary>Non-null when the last <see cref="Load"/> found an unreadable settings
     /// file. The corrupt file is preserved on disk at the path this message names.</summary>

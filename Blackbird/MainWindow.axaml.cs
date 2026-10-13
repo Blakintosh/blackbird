@@ -67,6 +67,18 @@ public partial class MainWindow : Window
         // Dragon may have been installed (or removed) while Blackbird was in the background.
         Activated += (_, _) => ViewModel?.RefreshBbLinker();
 
+        // Later and Close in the component flyout take the control away; the flyout goes with it.
+        DataContextChanged += (_, _) =>
+        {
+            if (ViewModel is { } vm)
+                vm.ComponentUpdates.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(Services.ComponentUpdater.IsShown) && !vm.ComponentUpdates.IsShown
+                        && this.FindControl<Button>("ComponentUpdateButton")?.Flyout is { IsOpen: true } open)
+                        open.Hide();
+                };
+        };
+
         if (this.FindControl<Button>("UpdateButton") is { } updateButton)
             updateButton.PropertyChanged += (_, e) =>
             {
@@ -992,6 +1004,7 @@ public partial class MainWindow : Window
     {
         if (ViewModel is not { } vm)
             return;
+        _ = vm.ComponentUpdates.CheckAsync(userAsked: true);
         await vm.Updates.CheckAndReportAsync(vm.ShowTransientStatus, text =>
         {
             if (text.Length > 0)
@@ -1022,6 +1035,15 @@ public partial class MainWindow : Window
     }
 
     private void OnUpdateFlyoutClosed(object? sender, EventArgs e) => ViewModel?.Updates.Dismiss();
+
+    private void OnComponentUpdateFlyoutClosed(object? sender, EventArgs e) => ViewModel?.ComponentUpdates.Dismiss();
+
+    /// <summary>Check now looks at Dragon and the Stock Library too (the command checks Blackbird itself).</summary>
+    private void OnCheckNowClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } vm)
+            _ = vm.ComponentUpdates.CheckAsync(userAsked: true);
+    }
 
     private readonly record struct ProjectWorkshopDetails(string Summary, IReadOnlyList<WorkshopVersionRow> Versions);
 
@@ -1692,7 +1714,7 @@ public partial class MainWindow : Window
         try
         {
             var report = await vm.ScanComponentsAsync();
-            await new ComponentsDialog { DataContext = new ComponentsDialogViewModel(report) }.ShowDialog(this);
+            await new ComponentsDialog { DataContext = new ComponentsDialogViewModel(report, vm.ComponentUpdates) }.ShowDialog(this);
         }
         finally
         {

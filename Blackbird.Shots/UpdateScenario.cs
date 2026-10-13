@@ -388,7 +388,7 @@ internal static class UpdateScenario
     /// A local stand-in for GitHub that can hold its answers: /feed waits until <see cref="Serve"/>, /zip sends half the
     /// bundle and waits for <see cref="ReleaseZip"/>, anything else is 404.
     /// </summary>
-    private sealed class ReleaseServer : IDisposable
+    internal sealed class ReleaseServer : IDisposable
     {
         private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
         private readonly CancellationTokenSource _stop = new();
@@ -432,7 +432,7 @@ internal static class UpdateScenario
                         var (feed, _) = await _content.Task.WaitAsync(_stop.Token);
                         await Send(stream, "200 OK", "application/json", Encoding.UTF8.GetBytes(feed));
                     }
-                    else if (path == "/zip")
+                    else if (path == "/zip" || path.EndsWith(".zip", StringComparison.Ordinal))
                     {
                         var (_, zip) = await _content.Task.WaitAsync(_stop.Token);
                         await stream.WriteAsync(Encoding.ASCII.GetBytes(

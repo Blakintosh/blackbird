@@ -97,7 +97,12 @@
                         </MenuItem>
                         <MenuItem Name="CheckNowItem" Header="{Binding Updates.CheckNowText}"
                                   Command="{Binding Updates.CheckNowCommand}" StaysOpenOnClick="True"
+                                  Click="OnCheckNowClick"
                                   IsVisible="{Binding Updates.ShowsCheckNow}"/>
+                        <Separator/>
+                        <!-- Dragon and the Stock Library are closed-source parts Blackbird keeps current when they are installed. -->
+                        <MenuItem Name="ComponentUpdatesItem" Header="Update _Dragon and Stock Library" ToggleType="CheckBox"
+                                  IsChecked="{Binding CheckComponentUpdates, Mode=TwoWay}" StaysOpenOnClick="True"/>
                     </MenuItem>
                     <Separator/>
                     <MenuItem Header="_About Blackbird" Click="OnAboutClick"/>
@@ -129,6 +134,27 @@
                     <Button.Flyout>
                         <Flyout Placement="BottomEdgeAlignedRight" Closed="OnUpdateFlyoutClosed">
                             <views:UpdatePanel DataContext="{Binding Updates}"/>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <!-- Dragon and Stock Library updates: one control for both, shown while they are downloading, ready, waiting for
+                     a build or Apex to finish, installed or failed. -->
+                <Button Name="ComponentUpdateButton"
+                        Theme="{StaticResource ToolbarButton}"
+                        Classes="titlebar-tool"
+                        IsVisible="{Binding ComponentUpdates.IsShown}"
+                        Margin="0,0,6,0"
+                        AutomationProperties.Name="{Binding ComponentUpdates.ChipText}"
+                        ToolTip.Tip="{Binding ComponentUpdates.Title}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Classes="update-glyph" Classes.pending="{Binding ComponentUpdates.IsPending}" IsVisible="{Binding ComponentUpdates.ShowsArrow}"/>
+                        <TextBlock Classes="update-glyph warning" IsVisible="{Binding ComponentUpdates.IsFailed}"/>
+                        <TextBlock Text="{Binding ComponentUpdates.ChipText}" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight" Closed="OnComponentUpdateFlyoutClosed">
+                            <views:ComponentUpdatePanel DataContext="{Binding ComponentUpdates}"/>
                         </Flyout>
                     </Button.Flyout>
                 </Button>

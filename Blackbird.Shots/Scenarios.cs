@@ -44,6 +44,7 @@ internal static class Scenarios
         MainWindow();
         Menus();
         UpdateScenario.Run(_main, _vm.Updates);
+        ComponentUpdateScenario.Run(_main, _vm, _settings);
         ThemeScenario.Run(_main, _vm, _settings);
         LogFind();
         LogFollows();

@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:s="using:Blackbird.Services"
+             x:Class="Blackbird.Views.ComponentUpdatePanel"
+             x:DataType="s:ComponentUpdater"
+             Width="340">
+    <!-- The title bar's component update flyout: Dragon and the Stock Library together, one message, one Install. The
+         states and the look follow UpdatePanel (Blackbird's own update); only the copy comes from the ComponentUpdater. -->
+    <StackPanel Margin="4" Spacing="12">
+        <DockPanel>
+            <TextBlock DockPanel.Dock="Left" Classes="update-state warning" IsVisible="{Binding IsFailed}"/>
+            <StackPanel Spacing="2">
+                <TextBlock Name="ComponentUpdateTitle" Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBlock Name="ComponentUpdateDetail" Text="{Binding Detail}" Classes="hint" TextWrapping="Wrap" IsVisible="{Binding HasDetail}"/>
+            </StackPanel>
+        </DockPanel>
+
+        <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress}"
+                     IsIndeterminate="{Binding IsProgressIndeterminate}" IsVisible="{Binding ShowsProgress}"/>
+
+        <!-- What is new in each, and the link to all of it. -->
+        <Border Classes="update-notes" IsVisible="{Binding ShowsNotes}">
+            <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="s:ComponentUpdate">
+                        <StackPanel Spacing="2" Margin="0,0,0,4">
+                            <TextBlock Text="{Binding Title}" FontWeight="Medium"/>
+                            <TextBlock Text="{Binding Notes}" Classes="hint" MaxLines="3" TextWrapping="NoWrap"
+                                       TextTrimming="CharacterEllipsis" IsVisible="{Binding HasNotes}"/>
+                            <Button Theme="{StaticResource ToolbarButton}" Classes="link" Content="Release notes"
+                                    HorizontalAlignment="Left" Margin="-6,0,0,-4"
+                                    Command="{Binding OpenNotesCommand}" IsVisible="{Binding HasPage}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Name="ComponentLaterButton" Theme="{StaticResource SubtleButton}" Content="{Binding LaterText}"
+                    Command="{Binding LaterCommand}" IsVisible="{Binding ShowsLater}"/>
+            <Button Name="ComponentInstallButton" Theme="{StaticResource AccentButton}" Content="{Binding InstallText}"
+                    Command="{Binding InstallCommand}" IsVisible="{Binding ShowsInstall}"
+                    ToolTip.Tip="{Binding InstallTip}" ToolTip.ShowOnDisabled="True"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

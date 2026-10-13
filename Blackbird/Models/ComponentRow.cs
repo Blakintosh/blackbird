@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Blackbird.Services;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Blackbird.Models;
 
@@ -15,7 +17,7 @@ public enum ComponentState
 }
 
 /// <summary>One line of the Components view: a Mod Tools app or part, what state it is in, and what it unlocks.</summary>
-public sealed class ComponentRow
+public sealed partial class ComponentRow : ObservableObject
 {
     public required string Id { get; init; }
     public required string Name { get; init; }
@@ -30,6 +32,34 @@ public sealed class ComponentRow
     /// <summary>The link on the right ("Get MTPlugins"); installing from inside Blackbird comes later.</summary>
     public string? ActionLabel { get; init; }
     public string? ActionUrl { get; init; }
+
+    /// <summary>A newer release of this component, when Blackbird found one (Dragon and the Stock Library). Set when the view opens and as a check finishes.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUpdate))]
+    private ComponentUpdate? _update;
+
+    public bool HasUpdate => Update is not null;
+
+    /// <summary>The row's Update button: the update is downloaded and nothing is working on it.</summary>
+    public bool CanInstallUpdate => Update?.CanInstallNow == true;
+
+    partial void OnUpdateChanging(ComponentUpdate? value)
+    {
+        if (Update is { } old)
+            old.PropertyChanged -= OnUpdateItemChanged;
+    }
+
+    partial void OnUpdateChanged(ComponentUpdate? value)
+    {
+        if (value is not null)
+            value.PropertyChanged += OnUpdateItemChanged;
+        OnPropertyChanged(nameof(CanInstallUpdate));
+    }
+
+    private void OnUpdateItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ComponentUpdate.State))
+            OnPropertyChanged(nameof(CanInstallUpdate));
+    }
 
     public bool IsReady => State == ComponentState.Ready;
     public bool NeedsAttention => State == ComponentState.Attention;
