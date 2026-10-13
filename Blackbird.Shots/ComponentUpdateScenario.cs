@@ -31,7 +31,7 @@ internal static class ComponentUpdateScenario
     private static string Cache(string id) => Path.Combine(ComponentPaths.Root, "updates", id + ".json");
 
     // What the stand-in CLIs answer, set by each step.
-    private sealed record Answer(string Latest, string Url, string Digest, string Notes = "");
+    private sealed record Answer(string? Latest, string BundleUrl, string Digest, string Notes = "", string? Error = null);
     private static Answer? _dragonSays;
     private static Answer? _stockSays;
     private static string? _inUse;
@@ -269,6 +269,15 @@ internal static class ComponentUpdateScenario
             SetRegistry("dragon", "1.0.4");
             Check($"components update: installed from the feed's bundle ({File.ReadAllText(DragonExe)})", File.ReadAllText(DragonExe) == "DRAGON:1.0.4" && installs == 4);
 
+            // The CLI answers but couldn't reach the feed: no update, no second request, a calm line.
+            _dragonSays = new Answer(null, "", "", Error: "the feed can't be reached");
+            Runs.Clear();
+            _ = updates.CheckAsync(userAsked: true);
+            WaitFor(() => updates.Phase == ComponentPhase.Idle && updates.StatusText.StartsWith("Stock Library is up to date", StringComparison.Ordinal), 8000);
+            Check($"components update: a check that couldn't reach the feed says so without asking again ('{updates.StatusText}', {Runs.Count(r => r.StartsWith("bb-linker", StringComparison.Ordinal))} Dragon runs)",
+                updates.StatusText == "Stock Library is up to date. Couldn't check Dragon." && !chip.IsVisible);
+            _dragonSays = null;
+
             // Everything current: the Components view says so in one line.
             Release("dragon", "1.0.4", [("bin/bb-linker/bb-linker.exe", "DRAGON:1.0.4")]);
             var final = ShowComponents(main, updates);
@@ -327,14 +336,25 @@ internal static class ComponentUpdateScenario
         if (text.StartsWith("BAD", StringComparison.Ordinal) || text.Length == 0)
             return Task.FromResult(new CliResult(false, -1, ""));
         var version = text.Split(':')[1];
-        string Json(Answer? say) => JsonSerializer.Serialize(new
+        // The contract's answer: it always exits 0, and trouble (error, latest null) is part of the JSON.
+        string Json(Answer? say)
         {
-            current = version,
-            latest = say?.Latest ?? version,
-            url = say?.Url ?? "",
-            digest = say is null ? "" : "sha256:" + say.Digest,
-            notes = say?.Notes ?? "",
-        });
+            var latest = say is null ? version : say.Latest;
+            return JsonSerializer.Serialize(new
+            {
+                current = version,
+                latest,
+                update_available = latest is not null && latest != version,
+                url = latest is null ? null : $"https://github.com/Blakintosh/{(version.Length > 0 && text.StartsWith("DRAGON", StringComparison.Ordinal) ? "dragon" : "stock-library")}/releases/tag/v{latest}",
+                digest = say is { Digest.Length: > 0 } ? "sha256:" + say.Digest : null,
+                notes = say?.Notes,
+                bundle_url = say is { BundleUrl.Length: > 0 } ? say.BundleUrl : null,
+                installer_url = (string?)null,
+                checked_at = 1791900000,
+                cached = false,
+                error = say?.Error,
+            });
+        }
         switch (args[0])
         {
             case "-capabilities":
@@ -405,14 +425,17 @@ internal static class ComponentUpdateScenario
 
     private static void ParsesTheCli()
     {
-        var good = ComponentUpdater.ParseCheck("""{"current":"1.0.0","latest":"v1.0.1","url":"https://x/dragon-1.0.1-win-x64.zip","digest":"sha256:ABCD","notes":"## Notes\n- one"}""");
-        Check($"components update: the check JSON is read (latest {good?.Latest}, digest '{good?.Digest}', notes '{good?.Notes}')",
-            good is { Current: "1.0.0", Latest: "1.0.1", Url: "https://x/dragon-1.0.1-win-x64.zip", Notes: "• one" } && good.Digest is null);
+        var good = ComponentUpdater.ParseCheck("""{"current":"1.0.0","latest":"v1.1.0","update_available":true,"url":"https://github.com/Blakintosh/dragon/releases/tag/v1.1.0","digest":"sha256:ABCD","notes":"## 1.1.0\n- one","bundle_url":"https://x/dragon-1.1.0-win-x64.zip","installer_url":null,"error":null}""");
+        Check($"components update: the check JSON is read (latest {good?.Latest}, bundle {good?.BundleUrl}, notes '{good?.Notes}')",
+            good is { Current: "1.0.0", Latest: "1.1.0", PageUrl: "https://github.com/Blakintosh/dragon/releases/tag/v1.1.0", BundleUrl: "https://x/dragon-1.1.0-win-x64.zip", Notes: "• one", Error: null }
+            && good.Digest is null);
         var hex = new string('a', 64);
         Check("components update: a digest is lower-cased and loses its sha256: prefix",
             ComponentUpdater.ParseCheck($$"""{"latest":"1.0.1","digest":"sha256:{{hex.ToUpperInvariant()}}"}""")?.Digest == hex);
-        Check("components update: usage text and errors are not an answer",
-            ComponentUpdater.ParseCheck("usage: bb-linker [-progress pipe]") is null && ComponentUpdater.ParseCheck("""{"error":"no feed"}""") is null
+        var trouble = ComponentUpdater.ParseCheck("""{"current":"1.0.0","latest":null,"update_available":false,"error":"the feed can't be reached"}""");
+        Check("components update: trouble is an answer too (latest null, an error)", trouble is { Latest: null, Error: "the feed can't be reached" });
+        Check("components update: usage text and other JSON are not an answer",
+            ComponentUpdater.ParseCheck("usage: bb-linker [-progress pipe]") is null && ComponentUpdater.ParseCheck("""{"id":"dragon","version":"1.0.0"}""") is null
             && ComponentUpdater.ParseCheck("") is null);
     }
 
