@@ -42,6 +42,7 @@ internal static class StockScenario
 
             Registry(vm, game);
             Plan(vm, settings, game, dragon, added);
+            LinkerScenario.Run(main, vm, settings, dragon, stockLinker);
 
             Install(game, added, apex: true, stocklib: true, index: true, host: true, plugin: false);
             ComponentsView(main, "components", expectOn: true);
@@ -349,6 +350,9 @@ internal static class StockScenario
             Check("components: states follow what is installed (Dragon ready, Stock Library ready, Radiant needs its plugin, Ultrasound missing)",
                 rows["dragon"].IsReady && rows["dragon"].StateText.Contains("stock-carry") && rows["stocklib"].IsReady
                 && rows["radiant"].NeedsAttention && rows["ultrasound"].IsMissing && rows["apex"].IsReady && rows["blackbird"].IsReady);
+            Check($"components: a Dragon named by BLACKBIRD_BB_LINKER shows as a dev build, not as installed ('{rows["dragon"].StateText}')",
+                rows["dragon"].StateText.Contains("dev build", StringComparison.Ordinal) && !rows["dragon"].StateText.Contains("installed", StringComparison.Ordinal)
+                && rows["dragon"].Detail.Contains("BLACKBIRD_BB_LINKER", StringComparison.Ordinal));
             Check("components: a missing component offers its product page, an installed one offers nothing",
                 rows["ultrasound"].HasAction && rows["ultrasound"].ActionUrl!.StartsWith("https://", StringComparison.Ordinal)
                 && !rows["dragon"].HasAction && !rows["blackbird"].HasAction);

@@ -86,6 +86,9 @@ public static partial class Program
 
     internal static int UiThreadId => _uiThreadId;
 
+    /// <summary>Where shots (and text captures beside them) are written.</summary>
+    internal static string OutDir => _outDir;
+
     // ── Output ──────────────────────────────────────────────────────────────
 
     internal static void Check(string label, bool ok)

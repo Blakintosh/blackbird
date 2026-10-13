@@ -1,0 +1,257 @@
+using System.Text;
+using Blackbird.Models;
+using Blackbird.Services;
+using Blackbird.ViewModels;
+using static Blackbird.Shots.Program;
+
+namespace Blackbird.Shots;
+
+/// <summary>
+/// Dragon and the stock linker side by side: every build log names the linker that linked (a coloured Dragon line from
+/// bb-linker's own -capabilities, or the stock linker's plain line), the status line says it too, and a missing
+/// bb-linker disables Tools > Link with bb-linker with a reason. Logs come from the real build service over stand-in
+/// linkers, then replay through the main window for the shots; each is also saved as text beside the shots.
+/// </summary>
+internal static class LinkerScenario
+{
+    private const int Unsupported = 0x0BB10001;
+
+    private sealed class Collect : IProgress<string>
+    {
+        private readonly StringBuilder _text = new();
+        public void Report(string value) { lock (_text) _text.Append(value); }
+        public override string ToString() { lock (_text) return _text.ToString(); }
+    }
+
+    public static void Run(MainWindow main, MainWindowViewModel vm, ISettingsService settings, string dragon, string stockLinker)
+    {
+        StatusNotes();
+
+        var marker = BbLinker.CarryMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
+        var markerText = File.Exists(marker) ? File.ReadAllText(marker) : null;
+        if (markerText is not null)
+            File.Delete(marker);
+        var prior = Environment.GetEnvironmentVariable(BbLinker.OverrideVariable);
+        var priorSetting = settings.UseBbLinker;
+        var missing = Path.Combine(FakeInstall.Root, "stock", "missing", "bb-linker.exe");
+
+        try
+        {
+            // 1. Dragon as installed (no override): the coloured line from -capabilities, before the linker's output.
+            Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, null);
+            var installed = Real(Dragon(dragon, 0, stockLinker));
+            var head = $"^4Dragon 0.1.0 (bb-linker, built {File.GetLastWriteTime(dragon):d MMM yyyy HH:mm})";
+            Check($"linker: a Dragon link opens with '{FirstLine(installed, "Dragon")}'",
+                installed.Contains(head + "\n", StringComparison.Ordinal) && !installed.Contains("dev build", StringComparison.Ordinal)
+                && installed.IndexOf(head, StringComparison.Ordinal) < installed.IndexOf("Linking zone", StringComparison.Ordinal));
+            Check("linker: the Dragon line is coloured but counts as neither an error nor a warning",
+                !BuildLogCodes.IsError(head) && !BuildLogCodes.IsWarning(head));
+
+            // 2. A developer's build named by BLACKBIRD_BB_LINKER says so, with its path.
+            Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, dragon);
+            var dev = Real(Dragon(dragon, 0, stockLinker));
+            Check($"linker: a dev build named by {BbLinker.OverrideVariable} says so ('{FirstLine(dev, "Dragon")}')",
+                dev.Contains($"^4Dragon 0.1.0 (bb-linker, dev build: {dragon}, built ", StringComparison.Ordinal));
+
+            // 3. A fallback names both: the Dragon line, then the hand-over, then the stock linker's output.
+            var handsOver = Path.Combine(Path.GetDirectoryName(dragon)!, "bb-linker-handover.cmd");
+            File.WriteAllText(handsOver, HandOverScript.ReplaceLineEndings("\r\n"));
+            var fallback = Real(Dragon(handsOver, Unsupported, stockLinker));
+            Check("linker: a fallback shows the Dragon line, then hands over to the stock linker by name",
+                fallback.Contains("^4Dragon 0.1.0", StringComparison.Ordinal)
+                && fallback.IndexOf("^4Dragon", StringComparison.Ordinal) < fallback.IndexOf("so the stock linker is linking it", StringComparison.Ordinal)
+                && fallback.Contains("STOCK LINKER RAN", StringComparison.Ordinal));
+
+            // 4. The switch off with Dragon installed: the stock linker's plain line says so, once per build.
+            settings.UseBbLinker = false;
+            var offPlan = Planned(vm);
+            var offHeaders = offPlan.Where(c => c.Header is not null).ToList();
+            Check($"linker: with the switch off, the first stock link names the linker and the switch, once ('{offHeaders.FirstOrDefault()?.Header}')",
+                offHeaders.Count == 1 && offHeaders[0].Header == BbLinker.StockHeader("linker_modtools.exe", BbLinker.SwitchedOffNote)
+                && !offPlan.Any(c => c.ReportsProgress));
+            var off = Real(Stock(stockLinker, offHeaders.FirstOrDefault()?.Header));
+            Check("linker: the stock line is plain (no colour code) and comes before the linker's output",
+                off.Contains("[launcher] Linking with the stock linker (linker_modtools.exe). bb-linker is installed, but Tools > Link with bb-linker is off.\n", StringComparison.Ordinal)
+                && !FirstLine(off, "Linking with the stock linker").Contains('^')
+                && off.IndexOf("Linking with the stock linker", StringComparison.Ordinal) < off.IndexOf("STOCK LINKER RAN", StringComparison.Ordinal));
+            Check("linker: Tools > Link with bb-linker shows unchecked but enabled when switched off",
+                vm.IsBbLinkerInstalled && !vm.IsLinkingWithBbLinker);
+
+            // 5. bb-linker missing: the switch is disabled with a reason; builds link with the stock linker, no note.
+            Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, missing);
+            settings.UseBbLinker = true;
+            var gonePlan = Planned(vm);
+            var goneHeaders = gonePlan.Where(c => c.Header is not null).ToList();
+            Check($"linker: with bb-linker missing, the stock link names the linker with no note ('{goneHeaders.FirstOrDefault()?.Header}')",
+                goneHeaders.Count == 1 && goneHeaders[0].Header == BbLinker.StockHeader("linker_modtools.exe", null)
+                && !gonePlan.Any(c => c.ReportsProgress));
+            Check($"linker: with bb-linker missing, the switch is disabled, unchecked, and says why ('{vm.LinkWithBbLinkerToolTip}')",
+                !vm.IsBbLinkerInstalled && !vm.IsLinkingWithBbLinker
+                && vm.LinkWithBbLinkerToolTip.Contains("doesn't exist", StringComparison.Ordinal)
+                && vm.LinkWithBbLinkerToolTip.Contains("The stock linker links every build.", StringComparison.Ordinal));
+            Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, null);
+            Check($"linker: with no override and nothing installed, the reason names where Blackbird looks ('{BbLinker.MissingReason(FakeInstall.GamePath)}')",
+                BbLinker.MissingReason(FakeInstall.GamePath) is { } why && why.Contains("isn't installed", StringComparison.Ordinal)
+                && why.Contains(Path.Combine("bb-linker", "bb-linker.exe"), StringComparison.OrdinalIgnoreCase));
+            var gone = Real(Stock(stockLinker, goneHeaders.FirstOrDefault()?.Header));
+
+            // 6. Prepare for publish names the stock linker and why.
+            Check("linker: Prepare for publish's stock line says it always links with it",
+                BbLinker.StockHeader("linker_modtools.exe", BbLinker.PublishNote).EndsWith("Prepare for publish always links with it.", StringComparison.Ordinal));
+
+            // 7. Dragon links the install Blackbird is building (TA_GAME_PATH / TA_TOOLS_PATH, as the stock launcher sets them).
+            Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, dragon);
+            settings.UseBbLinker = true;
+            var bbStep = Planned(vm).FirstOrDefault(c => c.ReportsProgress);
+            var expectInstall = Path.TrimEndingDirectorySeparator(FakeInstall.GamePath) + "\\";
+            Check($"linker: every Dragon link names Blackbird's install ({bbStep?.Environment?.GetValueOrDefault("TA_TOOLS_PATH")})",
+                bbStep?.Environment is { } bbEnv && bbEnv.GetValueOrDefault("TA_TOOLS_PATH") == expectInstall
+                && bbEnv.GetValueOrDefault("TA_GAME_PATH") == expectInstall && bbEnv.GetValueOrDefault("BBL_REAL_BUILD") == "1");
+            var envEcho = Path.Combine(Path.GetDirectoryName(dragon)!, "bb-linker-env.cmd");
+            File.WriteAllText(envEcho, "@echo off\r\nif \"%~1\"==\"-capabilities\" exit /b 0\r\necho install=%TA_TOOLS_PATH%\r\necho done: 0m0.01s\r\nexit /b 0\r\n");
+            var echoed = Real(new BuildCommand(envEcho, ["-modsource", "zm_castle_redux"], "Link") { ReportsProgress = true, Environment = bbStep?.Environment });
+            Check("linker: the Dragon process sees that install", echoed.Contains($"install={expectInstall}\n", StringComparison.Ordinal));
+
+            // 8. A project whose only stock dependency is sounds (.stocksound.json) is treated exactly like a carry project.
+            var soundMarker = BbLinker.SoundMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
+            File.WriteAllText(soundMarker, "{\"stock_sound_contract\":1,\"entries\":[]}");
+            try
+            {
+                var soundStep = Planned(vm).FirstOrDefault(c => c.ReportsProgress);
+                Check($"linker: a stock-sound marker makes the Dragon link a carry link that may not fall back ('{Path.GetFileName(soundStep?.CarryMarker)}')",
+                    soundStep?.CarryMarker == soundMarker && soundStep.Fallback is not null
+                    && BbLinker.AfterStep(Unsupported, soundStep.CarryMarker is not null) == BbLinker.Next.FailStockCarry);
+                settings.UseBbLinker = false;
+                var soundOff = Planned(vm).Where(c => c.CarryMarker is not null).ToList();
+                Check("linker: with the switch off, a stock-sound project is blocked instead of linked by the stock linker",
+                    soundOff.Count == 1 && soundOff[0].CarryBlockedReason?.Contains("Link with bb-linker is off", StringComparison.Ordinal) == true);
+                settings.UseBbLinker = true;
+                // The stand-in Dragon lists stock-carry but not stock-sound, so it can't link this project.
+                var noSound = Real(new BuildCommand(dragon, ["-modsource", "zm_castle_redux"], "Link (bb-linker)")
+                {
+                    ReportsProgress = true, CarryMarker = soundMarker,
+                    Environment = new Dictionary<string, string> { ["FAKE_BBL_EXIT"] = "0" },
+                    Fallback = new BuildCommand(stockLinker, ["-modsource", "zm_castle_redux"], "Link"),
+                });
+                Check("linker: a Dragon without stock-sound refuses a stock-sound project before linking, and the stock linker never runs",
+                    noSound.Contains("can't carry stock assets", StringComparison.Ordinal) && !noSound.Contains("STOCK LINKER RAN", StringComparison.Ordinal));
+                var carryMarker = BbLinker.CarryMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
+                Check("linker: the capability a project needs follows its marker (stock-sound, stock-carry)",
+                    BbLinker.CapabilityFor(soundMarker) == BbLinker.StockSoundCapability && BbLinker.CapabilityFor(carryMarker) == BbLinker.StockCarryCapability);
+            }
+            finally
+            {
+                File.Delete(soundMarker);
+            }
+
+            // The shots: each log through the main window, with the status line naming the linker.
+            Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, dragon);
+            settings.UseBbLinker = true;
+            Replay(main, vm, "main-log-dragon", installed, c => c.ReportsProgress ? new LinkOutcome("bb-linker", false, 0) : null,
+                "linked with Dragon");
+            Replay(main, vm, "main-log-dragon-dev", dev, c => c.ReportsProgress ? new LinkOutcome("bb-linker", false, 0) : null,
+                "linked with Dragon");
+            Replay(main, vm, "main-log-fallback", fallback, c => c.ReportsProgress ? new LinkOutcome("stock", true, 0) : null,
+                "linked with the stock linker (bb-linker fell back)");
+            settings.UseBbLinker = false;
+            Replay(main, vm, "main-log-stock-switched-off", off, c => c.OnLinked is not null ? new LinkOutcome("stock", false, 0) : null,
+                "linked with the stock linker");
+            Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, missing);
+            settings.UseBbLinker = true;
+            Replay(main, vm, "main-log-dragon-missing", gone, c => c.OnLinked is not null ? new LinkOutcome("stock", false, 0) : null,
+                "linked with the stock linker");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, prior);
+            settings.UseBbLinker = priorSetting;
+            if (markerText is not null)
+                File.WriteAllText(marker, markerText);
+            Build.Links = null;
+            Build.Tail = null;
+            Build.Result = true;
+        }
+    }
+
+    private static void StatusNotes()
+    {
+        LinkOutcome Bb(int exit = 0) => new("bb-linker", false, exit);
+        LinkOutcome Stock(bool fellBack = false) => new("stock", fellBack, 0);
+        var table = new (LinkOutcome[] Links, string? Expect)[]
+        {
+            ([], null),
+            ([new LinkOutcome("stock", false, BbLinker.ExitStockCarry, Ran: false)], null),
+            ([Bb()], "linked with Dragon"),
+            ([Bb(BbLinker.ExitStockCarry)], "linked with Dragon"),
+            ([Stock()], "linked with the stock linker"),
+            ([Stock(fellBack: true)], "linked with the stock linker (bb-linker fell back)"),
+            ([Bb(), Stock()], "linked with Dragon and the stock linker"),
+            ([Bb(), Stock(fellBack: true)], "linked with Dragon and the stock linker (bb-linker fell back)"),
+        };
+        var wrong = table.Where(t => MainWindowViewModel.DescribeLinkers(t.Links) != t.Expect)
+            .Select(t => $"[{string.Join(",", t.Links.Select(l => l.Linker))}] → '{MainWindowViewModel.DescribeLinkers(t.Links)}'").ToList();
+        Check($"linker: the status line's note names the linker that ran ({(wrong.Count == 0 ? "all eight rows" : string.Join("; ", wrong))})",
+            wrong.Count == 0);
+    }
+
+    // A bb-linker that meets something it can't convert yet and hands the link to the stock linker (0x0BB10001).
+    private const string HandOverScript = """
+        @echo off
+        if "%~1"=="-capabilities" goto caps
+        echo ^^7Linking zone zm_castle_redux
+        echo ^^7Dragon: zone zm_castle_redux uses an asset type this build can't convert yet
+        exit /b %FAKE_BBL_EXIT%
+        :caps
+        echo {"id":"dragon","version":"0.1.0","capabilities":["stock-carry"],"carry_contract":1}
+        exit /b 0
+        """;
+
+    private static BuildCommand Dragon(string exe, int exit, string stockLinker) =>
+        new(exe, ["-modsource", "zm_castle_redux"], "Link zm_castle_redux (bb-linker)")
+        {
+            ReportsProgress = true,
+            Environment = new Dictionary<string, string> { ["FAKE_BBL_EXIT"] = exit.ToString() },
+            Fallback = new BuildCommand(stockLinker, ["-modsource", "zm_castle_redux"], "Link zm_castle_redux"),
+        };
+
+    private static BuildCommand Stock(string exe, string? header) =>
+        new(exe, ["-modsource", "zm_castle_redux", "-skiploc"], "Link zm_castle_redux") { Header = header };
+
+    private static string Real(params BuildCommand[] steps)
+    {
+        var log = new Collect();
+        Task.Run(() => new BuildService().RunBuildAsync([.. steps], false, log, CancellationToken.None)).GetAwaiter().GetResult();
+        return log.ToString().ReplaceLineEndings("\n");
+    }
+
+    private static string FirstLine(string log, string containing) =>
+        log.Split('\n').FirstOrDefault(l => l.Contains(containing, StringComparison.Ordinal)) ?? "";
+
+    private static List<BuildCommand> Planned(MainWindowViewModel vm)
+    {
+        Build.Result = true;
+        vm.BuildOnlyOnceCommand.Execute(null);
+        WaitFor(() => vm.IsBuildRunning);
+        WaitFor(() => !vm.IsBuildRunning);
+        Pump(100);
+        return Build.LastCommands;
+    }
+
+    private static void Replay(MainWindow main, MainWindowViewModel vm, string shot, string log,
+        Func<BuildCommand, LinkOutcome?> links, string expectNote)
+    {
+        // The real build service's lines, minus the command lines (the stand-in linkers' paths), then the shot.
+        Build.Tail = log.Split('\n').Where(l => l.Length > 0 && !l.Contains(".cmd", StringComparison.OrdinalIgnoreCase) || l.Contains("dev build", StringComparison.Ordinal)).ToArray();
+        Build.Links = links;
+        Build.Result = true;
+        vm.BuildOnlyOnceCommand.Execute(null);
+        WaitFor(() => vm.IsBuildRunning);
+        WaitFor(() => !vm.IsBuildRunning);
+        Pump(250);
+        Check($"linker: {shot} lands with the status line naming the linker ('{vm.StatusLine}')",
+            vm.StatusLine.EndsWith(" · " + expectNote, StringComparison.Ordinal));
+        File.WriteAllText(Path.Combine(OutDir, shot + ".txt"), log);
+        Shot(main, shot);
+        Build.Links = null;
+    }
+}

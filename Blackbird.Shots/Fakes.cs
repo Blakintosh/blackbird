@@ -80,6 +80,9 @@ internal sealed class FakeBuild : IBuildService
     /// <summary>What the build prints after the gate; the log with errors when null.</summary>
     public string[]? Tail { get; set; }
 
+    /// <summary>How each planned link "ended", told to its OnLinked as the real build service would; null skips a step.</summary>
+    public Func<BuildCommand, LinkOutcome?>? Links { get; set; }
+
     /// <summary>Reported as the linker's progress once the log head is out, as bb-linker would mid-link.</summary>
     public LinkerProgress? LinkerSnapshot { get; set; }
 
@@ -99,6 +102,10 @@ internal sealed class FakeBuild : IBuildService
 
         foreach (var line in Tail ?? FakeInstall.BuildLogTail)
             progress.Report(line + "\n");
+        if (Links is { } links)
+            foreach (var command in commands)
+                if (links(command) is { } outcome)
+                    (outcome.FellBack ? command.Fallback?.OnLinked : command.OnLinked)?.Invoke(outcome);
         await Task.Yield(); // the reports are queued on the UI thread; finish behind them, as a real process exit does
         return Result;
     }
