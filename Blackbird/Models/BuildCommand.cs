@@ -2,8 +2,11 @@ using System.Collections.Generic;
 
 namespace Blackbird.Models;
 
-/// <summary>How a link step ended: which linker ran, whether it ran because bb-linker handed over, and its exit code.</summary>
-public readonly record struct LinkOutcome(string Linker, bool FellBack, int ExitCode);
+/// <summary>
+/// How a link step ended: which linker ran, whether it ran because bb-linker handed over, and its exit code.
+/// <see cref="Ran"/> is false when the step was refused before any linker started (a carry project with no linker for it).
+/// </summary>
+public readonly record struct LinkOutcome(string Linker, bool FellBack, int ExitCode, bool Ran = true);
 
 public class BuildCommand
 {
@@ -40,6 +43,12 @@ public class BuildCommand
 
     /// <summary>For a link: told how the step ended, for the components registry's last builds.</summary>
     public System.Action<LinkOutcome>? OnLinked { get; init; }
+
+    /// <summary>
+    /// For a stock link: the line naming the linker, shown before the step runs (the first stock link of a build only).
+    /// A bb-linker step's line comes from the linker itself (<see cref="Services.BbLinker.HeaderAsync"/>).
+    /// </summary>
+    public string? Header { get; init; }
 
     /// <summary>The step is bb-linker: it is given <c>-progress &lt;pipe&gt;</c> and its stage and percent are reported.</summary>
     public bool ReportsProgress { get; init; }

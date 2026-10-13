@@ -65,9 +65,9 @@
                     <MenuItem Header="_GSCode Library" Command="{Binding OpenGsCodeLibraryCommand}"/>
                     <MenuItem Header="BO3 _Source Explorer" Command="{Binding OpenBo3SourceExplorerCommand}"/>
                     <MenuItem Header="Link with _bb-linker" ToggleType="CheckBox"
-                              IsVisible="{Binding IsBbLinkerInstalled}"
-                              IsChecked="{Binding UseBbLinker, Mode=TwoWay}"
-                              ToolTip.Tip="Link with the Rust linker, which is faster on rebuilds. Anything it can't link yet falls back to the stock linker."/>
+                              IsEnabled="{Binding IsBbLinkerInstalled}"
+                              IsChecked="{Binding IsLinkingWithBbLinker, Mode=TwoWay}"
+                              ToolTip.Tip="{Binding LinkWithBbLinkerToolTip}" ToolTip.ShowOnDisabled="True"/>
                     <Separator/>
                     <MenuItem Header="Setup _Doctor…" Click="OnSetupDoctorClick"/>
                     <MenuItem Header="_Components…" Click="OnComponentsClick"

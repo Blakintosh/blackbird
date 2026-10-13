@@ -54,13 +54,13 @@ public partial class BuildService : IBuildService
             var blocked = step.CarryBlockedReason;
             if (blocked is null && step.CarryMarker is not null && step.Fallback is not null)
             {
-                var info = await BbLinker.ProbeAsync(step.Executable).ConfigureAwait(false);
-                blocked = BbLinker.CarryBlockedReason(true, true, true, info?.HasStockCarry == true);
+                var info = await BbLinker.ProbeAsync(step.Executable, step.Environment).ConfigureAwait(false);
+                blocked = BbLinker.CarryBlockedReason(true, true, true, info?.Has(BbLinker.CapabilityFor(step.CarryMarker)) == true);
             }
             if (blocked is null)
                 continue;
             progress.Report($"\n[launcher] {step.Description}: {blocked}\n");
-            step.OnLinked?.Invoke(new LinkOutcome(LinkerName(step), false, BbLinker.ExitStockCarry));
+            step.OnLinked?.Invoke(new LinkOutcome(LinkerName(step), false, BbLinker.ExitStockCarry, Ran: false));
             return false;
         }
 
@@ -77,6 +77,13 @@ public partial class BuildService : IBuildService
                 progress.Report("\n[launcher] No GDT changes since the last gdtdb update, so it was skipped.\n");
                 continue;
             }
+
+            // Every log says which linker linked: a coloured Dragon line from bb-linker itself, or the stock linker's plain one.
+            var header = command.ReportsProgress
+                ? await BbLinker.HeaderAsync(command.Executable, command.Environment).ConfigureAwait(false)
+                : command.Header;
+            if (header is not null)
+                progress.Report($"\n{header}\n");
 
             if (command.LinkStamps.Count > 0)
             {
@@ -159,7 +166,7 @@ public partial class BuildService : IBuildService
             try
             {
                 if (command.ReportsProgress && linkerProgress is not null
-                    && await BbLinker.SupportsAsync(command.Executable, "-progress").ConfigureAwait(false))
+                    && await BbLinker.SupportsAsync(command.Executable, "-progress", command.Environment).ConfigureAwait(false))
                 {
                     try
                     {

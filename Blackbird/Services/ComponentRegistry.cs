@@ -113,6 +113,7 @@ public sealed class ComponentRegistry
                 ["linker"] = outcome.Linker,
                 ["fell_back"] = outcome.FellBack,
                 ["exit"] = outcome.ExitCode,
+                ["ran"] = outcome.Ran,
                 ["time"] = DateTime.UtcNow.ToString("o"),
             };
             foreach (var stale in _builds.OrderByDescending(b => b.Value["time"]?.GetValue<string>(), StringComparer.Ordinal)
@@ -134,7 +135,8 @@ public sealed class ComponentRegistry
             var configured = BbLinker.ConfiguredPath(tools);
             var found = File.Exists(configured);
             var useBbLinker = _useBbLinker();
-            var carries = found && BbLinker.Probe(configured)?.HasStockCarry == true;
+            var info = found ? BbLinker.Probe(configured, BbLinker.InstallEnvironment(install, tools)) : null;
+            var carries = info?.HasStockCarry == true;
 
             JsonObject builds;
             lock (_lock)
@@ -153,6 +155,8 @@ public sealed class ComponentRegistry
                 ["use_bb_linker"] = useBbLinker,
                 ["bb_linker_path"] = configured,
                 ["bb_linker_effective"] = useBbLinker && found && carries,
+                ["bb_linker_version"] = info?.Version,
+                ["bb_linker_dev_build"] = found && BbLinker.IsOverride(configured),
                 ["written_at"] = DateTime.UtcNow.ToString("o"),
                 ["last_builds"] = builds,
             };

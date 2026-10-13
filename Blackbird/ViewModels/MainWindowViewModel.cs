@@ -548,6 +548,9 @@ public partial class MainWindowViewModel : ObservableObject
     /// <summary>The status line the last build outcome wrote; the outcome glyph shows only while that line does.</summary>
     private string? _outcomeStatusText;
 
+    /// <summary>How each link of the running build ended, for the status line's "linked with" note. Filled off the UI thread.</summary>
+    private readonly List<LinkOutcome> _buildLinks = [];
+
     /// <summary>
     /// The status bar's outcome glyph: "error", "warning", "success", or "" when the line isn't a
     /// build outcome (a copy, a launch message, Ready). A running build shows the progress line instead.
@@ -1871,8 +1874,23 @@ public partial class MainWindowViewModel : ObservableObject
     public bool IsThemeSlate => Theme == ThemeChoice.Slate;
     public bool IsThemeLight => Theme == ThemeChoice.Light;
 
-    /// <summary>Tools > Link with bb-linker: shown only when bb-linker is installed beside the launcher.</summary>
+    /// <summary>
+    /// Tools > Link with bb-linker is enabled only when bb-linker is installed (<c>&lt;BO3&gt;\bin\bb-linker\bb-linker.exe</c>)
+    /// or named by <c>BLACKBIRD_BB_LINKER</c>; otherwise it is disabled and its tooltip says why. Read when the menu binds.
+    /// </summary>
     public bool IsBbLinkerInstalled => BbLinker.Locate(_fileSystem.ToolsPath) is not null;
+
+    /// <summary>The menu's check: on only when bb-linker is there and the setting is on, so a missing linker never reads as "on".</summary>
+    public bool IsLinkingWithBbLinker
+    {
+        get => IsBbLinkerInstalled && UseBbLinker;
+        set => UseBbLinker = value;
+    }
+
+    public string LinkWithBbLinkerToolTip =>
+        BbLinker.MissingReason(_fileSystem.ToolsPath)
+        ?? "Link with Dragon, the Rust linker, which is faster on rebuilds. Anything it can't link yet falls back to the stock linker."
+        + (BbLinker.OverridePath is { } dev ? $" Dev build: {dev} ({BbLinker.OverrideVariable})." : "");
 
     public bool UseBbLinker
     {
@@ -1886,6 +1904,7 @@ public partial class MainWindowViewModel : ObservableObject
                 _ = _componentRegistry.WriteAsync();
             }
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsLinkingWithBbLinker));
         }
     }
 
@@ -2058,6 +2077,7 @@ public partial class MainWindowViewModel : ObservableObject
         IsBuildCancelling = false;
         BuildButtonText = "Cancel";
         ResetOutputText();
+        ResetBuildLinks();
         ErrorCount = 0;
         LastBuildOutcome = BuildOutcome.None;
         WarningCount = 0;
@@ -2130,7 +2150,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         var now = DateTime.Now;
-        ApplyBuildStatus(buildStatus);
+        ApplyBuildStatus(buildStatus, TakeLinkerNote());
         BuildTimestamp = now.ToString("d MMM yyyy 'at' HH:mm");
         BuildDurationText = FormatDuration(buildTimer.Elapsed);
 
@@ -2858,6 +2878,7 @@ public partial class MainWindowViewModel : ObservableObject
         IsBuildCancelling = false;
         BuildButtonText = "Cancel";
         ResetOutputText();
+        ResetBuildLinks();
         ErrorCount = 0;
         LastBuildOutcome = BuildOutcome.None;
         WarningCount = 0;
@@ -2939,7 +2960,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         // Format status and timestamp separately
         var now = DateTime.Now;
-        ApplyBuildStatus(buildStatus);
+        ApplyBuildStatus(buildStatus, TakeLinkerNote());
         BuildTimestamp = now.ToString("d MMM yyyy 'at' HH:mm");
         BuildDurationText = FormatDuration(buildTimer.Elapsed);
 
@@ -2976,13 +2997,52 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     /// <summary>Shows a stored build status as the outcome and its status-bar line.</summary>
-    private void ApplyBuildStatus(string? status)
+    private void ApplyBuildStatus(string? status, string? linkerNote = null)
     {
         var (outcome, label) = DescribeBuildStatus(status);
+        if (linkerNote is not null && outcome != BuildOutcome.None)
+            label = $"{label} · {linkerNote}";
         _outcomeStatusText = label;
         LastBuildOutcome = outcome;
         StatusText = label;
         OnPropertyChanged(nameof(StatusKind));
+    }
+
+    private void ResetBuildLinks()
+    {
+        lock (_buildLinks)
+            _buildLinks.Clear();
+    }
+
+    /// <summary>Which linker linked the build that just ended ("linked with Dragon"), or null when nothing linked.</summary>
+    private string? TakeLinkerNote()
+    {
+        LinkOutcome[] links;
+        lock (_buildLinks)
+        {
+            links = [.. _buildLinks];
+            _buildLinks.Clear();
+        }
+        return DescribeLinkers(links);
+    }
+
+    internal static string? DescribeLinkers(IReadOnlyCollection<LinkOutcome> links)
+    {
+        var ran = links.Where(l => l.Ran).ToList();
+        if (ran.Count == 0)
+            return null;
+        var dragon = ran.Any(l => l.Linker == "bb-linker");
+        var fellBack = ran.Any(l => l.FellBack);
+        var stock = ran.Any(l => l.Linker != "bb-linker" && !l.FellBack);
+        if (dragon && !fellBack && !stock)
+            return "linked with Dragon";
+        if (fellBack && !dragon && !stock)
+            return "linked with the stock linker (bb-linker fell back)";
+        if (!dragon && !fellBack)
+            return "linked with the stock linker";
+        return fellBack
+            ? "linked with Dragon and the stock linker (bb-linker fell back)"
+            : "linked with Dragon and the stock linker";
     }
 
     /// <summary>Maps the status stored with a build result to its outcome and status-bar label.</summary>
@@ -3183,13 +3243,24 @@ public partial class MainWindowViewModel : ObservableObject
         var project = Path.GetFileName(projectFolder);
         var bbLinker = BbLinker.Locate(_fileSystem.ToolsPath);
 
-        // A project that bb-linker carried stock assets into has a marker; the stock linker can't link it.
-        var carryMarker = BbLinker.CarryMarkerPath(projectFolder, zoneName);
-        var dependsOnCarry = File.Exists(carryMarker);
+        // A project that bb-linker carried stock assets or stock sound aliases into has a marker; the stock linker can't link it.
+        var carryMarker = BbLinker.StockMarker(projectFolder, zoneName);
+        var dependsOnCarry = carryMarker is not null;
         var useBbLinker = _settings.UseBbLinker && bbLinker is not null;
 
         Action<LinkOutcome> Record(bool fellBack) =>
-            outcome => _ = _componentRegistry.RecordBuildAsync(project, outcome with { FellBack = fellBack });
+            outcome =>
+            {
+                var recorded = outcome with { FellBack = fellBack };
+                lock (_buildLinks)
+                    _buildLinks.Add(recorded);
+                _ = _componentRegistry.RecordBuildAsync(project, recorded);
+            };
+
+        // The first stock link of a build names the linker, once, and says why bb-linker isn't linking when it's there.
+        string? StockHeader(string? note) =>
+            commands.Any(c => c.Header is not null) ? null : BbLinker.StockHeader(linker, note);
+        var switchedOffNote = bbLinker is not null && !_settings.UseBbLinker ? BbLinker.SwitchedOffNote : null;
 
         // Prepare for publish links with the stock linker alone, except when the project needs bb-linker to link at all.
         if (linkOnly && !(dependsOnCarry && useBbLinker))
@@ -3197,6 +3268,7 @@ public partial class MainWindowViewModel : ObservableObject
             List<string> linkOnlyArgs = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
             commands.Add(new BuildCommand(linker, linkOnlyArgs, description)
             {
+                Header = dependsOnCarry ? null : StockHeader(useBbLinker ? BbLinker.PublishNote : switchedOffNote),
                 PatchUmbraWait = isMap,
                 CarryMarker = dependsOnCarry ? carryMarker : null,
                 CarryBlockedReason = dependsOnCarry
@@ -3222,8 +3294,12 @@ public partial class MainWindowViewModel : ObservableObject
             ];
             commands.Add(new BuildCommand(bbExe, args, $"{description} (bb-linker)")
             {
-                // A real build: bb-linker may run snd_convert on the project, as the stock linker does.
-                Environment = new Dictionary<string, string> { ["BBL_REAL_BUILD"] = "1" },
+                // A real build: bb-linker may run snd_convert on the project, as the stock linker does. It links the
+                // install Blackbird is building, named the way the stock launcher names it to the Mod Tools.
+                Environment = new Dictionary<string, string>(BbLinker.InstallEnvironment(_fileSystem.GamePath, _fileSystem.ToolsPath))
+                {
+                    ["BBL_REAL_BUILD"] = "1",
+                },
                 ReportsProgress = true,
                 LinkStamps = Stamps(bbExe),
                 CarryMarker = dependsOnCarry ? carryMarker : null,
@@ -3254,6 +3330,7 @@ public partial class MainWindowViewModel : ObservableObject
         List<string> main = [.. languageArgs, .. extraArgs, "-modsource", zoneName, "-skiploc"];
         commands.Add(new BuildCommand(linker, main, description)
         {
+            Header = StockHeader(switchedOffNote),
             PatchUmbraWait = isMap,
             LinkStamps = [new LinkStamp(environment, projectFolder, zoneName, language: null, BuildCommand.FormatCommand(linker, main))],
             OnLinked = Record(fellBack: false),
