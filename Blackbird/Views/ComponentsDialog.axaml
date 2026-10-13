@@ -16,14 +16,21 @@
                        Subtitle="{Binding InstallPath, StringFormat='Installed for {0}'}">
         <views:DialogShell.Status>
             <Panel>
+                <TextBlock Name="ComponentsStatus" Classes="status"
+                           Text="{Binding UpdateStatus}"
+                           IsVisible="{Binding HasUpdateStatus}"/>
                 <TextBlock Classes="status"
                            Text="Stock Library and Dragon are picked up automatically when they are installed."
-                           IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNullOrEmpty}}"/>
+                           IsVisible="{Binding !HasUpdateStatus}"/>
                 <TextBlock Classes="error" Text="{Binding ErrorMessage}"/>
             </Panel>
         </views:DialogShell.Status>
         <views:DialogShell.Footer>
             <StackPanel Classes="dialog-buttons">
+                <Button Name="CheckUpdatesButton" Content="Check for updates"
+                        Theme="{StaticResource SubtleButton}"
+                        IsVisible="{Binding Updates, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        Command="{Binding Updates.CheckNowCommand}"/>
                 <Button Name="CloseButton" Content="Close"
                         Click="OnCloseClick"
                         IsCancel="True"
@@ -59,19 +66,31 @@
                                         <StackPanel Grid.Column="1" Spacing="2">
                                             <TextBlock Text="{Binding Name}" FontWeight="Medium"/>
                                             <TextBlock Classes="hint mono" Text="{Binding StateText}"/>
+                                            <!-- The update badge: the newer version, or how installing it is going. -->
+                                            <TextBlock Name="UpdateBadge" Text="{Binding Update.StateText}" FontWeight="Medium" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AccentIndicator}" IsVisible="{Binding HasUpdate}"/>
                                         </StackPanel>
                                         <TextBlock Grid.Column="2" Text="{Binding Detail}" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource ForegroundPrimary}"/>
-                                        <Button Grid.Column="3" Classes="link"
-                                                Theme="{StaticResource ToolbarButton}"
-                                                MinWidth="104"
-                                                HorizontalAlignment="Right"
-                                                VerticalAlignment="Top"
-                                                Content="{Binding ActionLabel}"
-                                                IsVisible="{Binding HasAction}"
-                                                Command="{Binding $parent[ItemsControl].((vm:ComponentsDialogViewModel)DataContext).OpenActionCommand}"
-                                                CommandParameter="{Binding}"
-                                                ToolTip.Tip="{Binding ActionUrl}"/>
+                                        <StackPanel Grid.Column="3" Spacing="4" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                            <Button Name="InstallUpdateButton"
+                                                    Theme="{StaticResource AccentButton}"
+                                                    MinWidth="104"
+                                                    HorizontalAlignment="Right"
+                                                    Content="Update"
+                                                    IsVisible="{Binding Update.CanInstallNow}"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ComponentsDialogViewModel)DataContext).InstallUpdateCommand}"
+                                                    CommandParameter="{Binding}"/>
+                                            <Button Classes="link"
+                                                    Theme="{StaticResource ToolbarButton}"
+                                                    MinWidth="104"
+                                                    HorizontalAlignment="Right"
+                                                    Content="{Binding ActionLabel}"
+                                                    IsVisible="{Binding HasAction}"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ComponentsDialogViewModel)DataContext).OpenActionCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="{Binding ActionUrl}"/>
+                                        </StackPanel>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

@@ -10,6 +10,7 @@ public partial class ComponentsDialog : Window
     {
         InitializeComponent();
         Opened += (_, _) => this.FindControl<Button>("CloseButton")?.Focus();
+        Closed += (_, _) => (DataContext as ViewModels.ComponentsDialogViewModel)?.Detach();
     }
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();

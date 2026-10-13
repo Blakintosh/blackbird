@@ -12,7 +12,53 @@ namespace Blackbird.ViewModels;
 /// </summary>
 public sealed partial class ComponentsDialogViewModel : ObservableObject
 {
-    public ComponentsDialogViewModel(ComponentsReport report) => Report = report;
+    public ComponentsDialogViewModel(ComponentsReport report, ComponentUpdater? updates = null)
+    {
+        Report = report;
+        Updates = updates;
+        if (updates is not null)
+        {
+            updates.PropertyChanged += OnUpdatesChanged;
+            ApplyUpdates();
+        }
+    }
+
+    /// <summary>Dragon and Stock Library updates; null in a view with no updater.</summary>
+    public ComponentUpdater? Updates { get; }
+
+    /// <summary>Stops listening to the updater; the view calls it when it closes.</summary>
+    public void Detach()
+    {
+        if (Updates is not null)
+            Updates.PropertyChanged -= OnUpdatesChanged;
+    }
+
+    private void OnUpdatesChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ComponentUpdater.Items) or nameof(ComponentUpdater.Phase))
+            ApplyUpdates();
+        if (e.PropertyName is nameof(ComponentUpdater.StatusText) or nameof(ComponentUpdater.Phase))
+            OnPropertyChanged(nameof(UpdateStatus));
+    }
+
+    private void ApplyUpdates()
+    {
+        foreach (var row in Report.Rows)
+            row.Update = Updates?.Find(row.Id);
+        OnPropertyChanged(nameof(UpdateStatus));
+        OnPropertyChanged(nameof(HasUpdateStatus));
+    }
+
+    /// <summary>How the last Dragon and Stock Library check went, or what the update is doing; empty when there is nothing to say.</summary>
+    public string UpdateStatus => Updates is null ? "" : Updates.Phase == ComponentPhase.Checking ? "Checking for updates…" : Updates.StatusText;
+    public bool HasUpdateStatus => UpdateStatus.Length > 0;
+
+    [RelayCommand]
+    private void InstallUpdate(ComponentRow? row)
+    {
+        if (row?.Update is { } update && Updates is not null)
+            _ = Updates.InstallAsync(update.Id);
+    }
 
     public ComponentsReport Report { get; }
     public IReadOnlyList<ComponentRow> Rows => Report.Rows;

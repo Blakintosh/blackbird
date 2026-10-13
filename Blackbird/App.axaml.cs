@@ -37,6 +37,18 @@ public partial class App : Application
         services.AddSingleton<ITemplateService, TemplateService>();
         services.AddSingleton<IProjectAnalysisService, ProjectAnalysisService>();
         services.AddSingleton(_ => new Updater(AppUpdates.Options));
+        services.AddSingleton(sp =>
+        {
+            var files = sp.GetRequiredService<IFileSystemService>();
+            var saved = sp.GetRequiredService<ISettingsService>();
+            return new ComponentUpdater(new ComponentUpdaterOptions
+            {
+                GamePath = () => files.GamePath,
+                ToolsPath = () => files.ToolsPath,
+                Enabled = () => saved.CheckComponentUpdates,
+                LogFile = AppUpdates.Options.LogFile,
+            });
+        });
 
         // ViewModels
         services.AddTransient<MainWindowViewModel>();
@@ -82,7 +94,12 @@ public partial class App : Application
             {
                 settings.LastUpdateCheckUtc = DateTime.UtcNow;
                 // After the first frame: the check and its download run in the background and only ever show a ready update.
-                mainWindow.Opened += (_, _) => Dispatcher.UIThread.Post(() => _ = updater.CheckAsync(userAsked: false), DispatcherPriority.Background);
+                var components = Services.GetRequiredService<ComponentUpdater>();
+                mainWindow.Opened += (_, _) => Dispatcher.UIThread.Post(() =>
+                {
+                    _ = updater.CheckAsync(userAsked: false);
+                    _ = components.CheckAsync(userAsked: false);
+                }, DispatcherPriority.Background);
             }
 
             // Exit follows every shutdown path, after the main window has recorded its bounds.

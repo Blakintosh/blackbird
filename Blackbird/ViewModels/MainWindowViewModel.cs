@@ -1132,17 +1132,35 @@ public partial class MainWindowViewModel : ObservableObject
     /// <summary>The update check and the title bar's update control.</summary>
     public Updater Updates { get; }
 
+    /// <summary>Dragon and Stock Library updates: the second title bar control, and the badges in Tools > Components.</summary>
+    public ComponentUpdater ComponentUpdates { get; }
+
+    /// <summary>Why the tools mustn't be touched right now (a build, a link, a Workshop upload), or null. Component updates wait on it.</summary>
+    private string? ToolsBusyReason() =>
+        IsBuildRunning || IsBuildCancelling || IsPreparingForPublish ? "a build is running"
+        : IsPublishing ? "a Workshop upload is running"
+        : null;
+
     public MainWindowViewModel(
         IFileSystemService fileSystem,
         IBuildService buildService,
         ISettingsService settings,
-        Updater updates)
+        Updater updates,
+        ComponentUpdater componentUpdates)
     {
         Updates = updates;
+        ComponentUpdates = componentUpdates;
+        componentUpdates.BusyReason = ToolsBusyReason;
         _fileSystem = fileSystem;
         _buildService = buildService;
         _settings = settings;
         _componentRegistry = new ComponentRegistry(() => _fileSystem.GamePath, () => _fileSystem.ToolsPath, () => _settings.UseBbLinker);
+        // Dragon or the Stock Library was replaced: look for bb-linker again and rewrite Blackbird's registry entry.
+        componentUpdates.Installed += (_, _) =>
+        {
+            RefreshBbLinker();
+            _ = _componentRegistry.WriteAsync();
+        };
 
         QuickLaunchMaps.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasQuickLaunchMapOptions));
         _settingsSaveTimer.Tick += (_, _) => _ = SaveSettingsInBackgroundAsync();
@@ -1902,6 +1920,20 @@ public partial class MainWindowViewModel : ObservableObject
         BbLinker.MissingReason(_fileSystem.ToolsPath)
         ?? "Link with Dragon, the Rust linker, which is faster on rebuilds. Anything it can't link yet falls back to the stock linker."
         + (BbLinker.OverridePath is { } dev ? $" Dev build: {dev} ({BbLinker.OverrideVariable})." : "");
+
+    /// <summary>Help > Updates > Update Dragon and Stock Library: whether the automatic check looks for their updates.</summary>
+    public bool CheckComponentUpdates
+    {
+        get => _settings.CheckComponentUpdates;
+        set
+        {
+            if (_settings.CheckComponentUpdates == value)
+                return;
+            _settings.CheckComponentUpdates = value;
+            QueueSettingsSave();
+            OnPropertyChanged();
+        }
+    }
 
     public bool UseBbLinker
     {
