@@ -82,6 +82,8 @@ public partial class BuildService : IBuildService
             if (command.Environment is { } environment)
                 foreach (var (name, value) in environment)
                     psi.Environment[name] = value;
+            // Blackbird updates Ultrasound itself; the linker hands this on to snd_convert.exe, which then leaves its own updater alone.
+            ManagedUpdates.Apply(psi);
 
             using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
             var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -298,6 +298,7 @@ public partial class Export2RustDialogViewModel : ObservableObject
             },
             EnableRaisingEvents = true
         };
+        ManagedUpdates.Apply(process.StartInfo);
 
         foreach (var job in jobs)
             process.StartInfo.ArgumentList.Add(job.FilePath);
