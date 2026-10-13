@@ -69,7 +69,7 @@ public static class ComponentSpecs
 public sealed record CliResult(bool Started, int ExitCode, string Output);
 
 /// <summary>What <c>bb-linker -check-update -json</c> / <c>stocklib update-check --json</c> answers.</summary>
-public sealed record CheckInfo(string? Current, string Latest, string? Url, string? Digest, string? Notes);
+public sealed record CheckInfo(string? Current, string? Latest, string? PageUrl, string? BundleUrl, string? Digest, string? Notes, string? Error);
 
 public enum ComponentItemState { Available, Downloading, Ready, Installing, Installed, Failed }
 
@@ -359,13 +359,11 @@ public sealed partial class ComponentUpdater : ObservableObject
     private ComponentUpdate? CheckOne(ComponentSpec spec, string exe, string root, string game)
     {
         var environment = BbLinker.InstallEnvironment(game, root);
-        CheckInfo? info = null;
-        // The component's own check (it caches daily and knows its feed). An older build without the flag answers with usage
-        // text or an error; then the same question is asked of the feed directly.
+        // The component's own check (it caches daily and knows its feed). A build that predates the flag answers with usage
+        // text or an error that isn't JSON; then the same question is asked of the feed directly.
         var cli = _options.Run(exe, spec.CheckArgs, WithFeed(environment, spec)).GetAwaiter().GetResult();
-        if (cli.Started && ParseCheck(cli.Output) is { } parsed)
-            info = parsed;
-        else
+        var info = cli.Started ? ParseCheck(cli.Output) : null;
+        if (info is null)
             Log($"{spec.DisplayName} has no update check ({(cli.Started ? $"exit {cli.ExitCode}" : "didn't start")}); reading the release feed.");
 
         var current = info?.Current ?? CurrentVersionOf(spec, exe, root, game);
@@ -375,40 +373,54 @@ public sealed partial class ComponentUpdater : ObservableObject
             return null;
         }
 
-        Release? release = null;
-        if (info is null || info.Url is null || !info.Url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) || info.Digest is null)
+        var latest = info?.Latest;
+        if (info is not null)
         {
-            if (info is not null && Updater.CompareVersions(info.Latest, current) <= 0)
+            // It always answers; trouble is part of the answer. It has asked the feed itself, so asking again would only repeat it.
+            if (latest is null)
+                return info.Error is { } why ? throw new UpdateCheckException(why) : null;
+            if (Updater.CompareVersions(latest, current) <= 0)
                 return null;
-            release = FetchRelease(spec);
         }
 
-        var latest = info?.Latest ?? release!.Version;
-        if (Updater.CompareVersions(latest, current) <= 0)
+        var (bundleUrl, digest, notes, page, size) = (info?.BundleUrl, info?.Digest, info?.Notes, info?.PageUrl, 0L);
+        if (bundleUrl is null || digest is null)
+        {
+            // An answer without a bundle or its checksum can't be installed from; the feed's release has both.
+            var release = FetchRelease(spec);
+            if (latest is not null && Updater.CompareVersions(release.Version, latest) != 0)
+                throw new UpdateCheckException($"the feed offers {release.Version}, not {latest}");
+            latest = release.Version;
+            if (release.BundleUrl.Length == 0)
+                throw new UpdateCheckException($"release {latest} has no {spec.Id}-{latest}-win-x64.zip");
+            bundleUrl = release.BundleUrl;
+            digest = release.Digest;
+            notes ??= release.Notes;
+            page ??= release.PageUrl;
+            size = release.BundleSize;
+        }
+
+        if (Updater.CompareVersions(latest!, current) <= 0)
             return null;
-        // Version from the feed must match what the component said; if the CLI named one the feed doesn't have, trust the feed's bundle.
-        var bundleUrl = release?.BundleUrl ?? info!.Url!;
-        var digest = release?.Digest ?? info!.Digest!;
-        if (release is not null && Updater.CompareVersions(release.Version, latest) != 0)
-            throw new UpdateCheckException($"the feed offers {release.Version}, not {latest}");
-        if (release is not null && release.BundleUrl.Length == 0)
-            throw new UpdateCheckException($"release {latest} has no {spec.Id}-{latest}-win-x64.zip");
-        if (digest is null || digest.Length == 0)
-            throw new UpdateCheckException($"release {latest} has no checksum");
+        if (digest is null)
+            throw new UpdateCheckException($"release {latest} has no checksum, so it can't be installed");
         return new ComponentUpdate
         {
             Spec = spec,
             Current = current,
-            Latest = latest,
-            Notes = info?.Notes ?? release?.Notes,
-            PageUrl = release?.PageUrl ?? $"https://github.com/{spec.Repository}/releases/tag/v{latest}",
+            Latest = latest!,
+            Notes = notes,
+            PageUrl = page ?? $"https://github.com/{spec.Repository}/releases/tag/v{latest}",
             BundleUrl = bundleUrl,
-            BundleSize = release?.BundleSize ?? 0,
+            BundleSize = size,
             Digest = digest,
         };
     }
 
-    /// <summary>The CLI check's JSON: <c>{current, latest, url, digest, notes}</c>. Null for usage text or an error.</summary>
+    /// <summary>
+    /// The check's JSON (<c>current</c>, <c>latest</c>, <c>update_available</c>, <c>url</c> the release page, <c>bundle_url</c>,
+    /// <c>digest</c>, <c>notes</c>, <c>error</c>). Null for usage text or anything that isn't that object.
+    /// </summary>
     public static CheckInfo? ParseCheck(string output)
     {
         var start = output.IndexOf('{', StringComparison.Ordinal);
@@ -418,13 +430,18 @@ public sealed partial class ComponentUpdater : ObservableObject
         {
             using var document = JsonDocument.Parse(output[start..], new JsonDocumentOptions { AllowTrailingCommas = true });
             var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object)
+            if (root.ValueKind != JsonValueKind.Object || !(root.TryGetProperty("latest", out _) || root.TryGetProperty("current", out _)
+                || root.TryGetProperty("update_available", out _)))
                 return null;
             string? Text(string name) =>
                 root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } text ? text.Trim() : null;
-            return Text("latest") is { } latest
-                ? new CheckInfo(Text("current"), latest.TrimStart('v', 'V'), Text("url"), NormalizeDigest(Text("digest")), Preview(Text("notes")))
-                : null;
+            var page = Text("url");
+            var bundle = Text("bundle_url");
+            // An earlier draft of the contract put the bundle in "url".
+            if (bundle is null && page?.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) == true)
+                (bundle, page) = (page, null);
+            return new CheckInfo(Text("current"), Text("latest")?.TrimStart('v', 'V'), page, bundle, NormalizeDigest(Text("digest")),
+                Preview(Text("notes")), Text("error"));
         }
         catch (JsonException)
         {
