@@ -46,14 +46,14 @@ public sealed record ComponentSpec(
 public static class ComponentSpecs
 {
     public static readonly ComponentSpec Dragon = new(
-        "dragon", "Dragon", "Blakintosh/dragon", "bin/dragon.exe",
+        "dragon", "Dragon", "Blakintosh/dragon-releases", "bin/dragon.exe",
         [new("bin/dragon.exe")],
         CheckArgs: ["-check-update", "-json"],
         VerifyArgs: ["-capabilities"], VerifyField: "version",
         ProcessNames: ["dragon"]);
 
     public static readonly ComponentSpec StockLibrary = new(
-        "stocklib", "Stock Library", "Blakintosh/stock-library", "bin/stocklib/stocklib.exe",
+        "stocklib", "Stock Library", "Blakintosh/stocklib-releases", "bin/stocklib/stocklib.exe",
         [
             new("bin/stocklib/stocklib.exe"),
             new("bin/plugins/StockLibrary/StockLibrary.dll", RequiresFile: "bin/plugins/RadiantPlugins.dll"),

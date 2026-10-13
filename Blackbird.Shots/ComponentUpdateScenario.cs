@@ -268,7 +268,7 @@ internal static partial class ComponentUpdateScenario
             WaitFor(() => updates.Phase == ComponentPhase.Ready, 8000);
             Check($"components update: an unknown flag falls back to the release feed ({string.Join("; ", Runs.Take(2))}, {updates.Find("dragon")?.Latest})",
                 Runs.Contains("dragon.exe -check-update -json") && updates.Find("dragon") is { Latest: "1.0.4", Current: "1.0.1" } d
-                && d.PageUrl == "https://github.com/Blakintosh/dragon/releases/tag/v1.0.4" && d.BundleUrl == new Uri(viaFeed).AbsoluteUri);
+                && d.PageUrl == "https://github.com/Blakintosh/dragon-releases/releases/tag/v1.0.4" && d.BundleUrl == new Uri(viaFeed).AbsoluteUri);
             OpenFlyout(chip);
             Click(PanelButton(main, "Install"));
             WaitFor(() => updates.Phase == ComponentPhase.Installed, 8000);
@@ -357,7 +357,7 @@ internal static partial class ComponentUpdateScenario
                 current = version,
                 latest,
                 update_available = latest is not null && latest != version,
-                url = latest is null ? null : $"https://github.com/Blakintosh/{(version.Length > 0 && text.StartsWith("DRAGON", StringComparison.Ordinal) ? "dragon" : "stock-library")}/releases/tag/v{latest}",
+                url = latest is null ? null : $"https://github.com/Blakintosh/{(version.Length > 0 && text.StartsWith("DRAGON", StringComparison.Ordinal) ? "dragon-releases" : "stocklib-releases")}/releases/tag/v{latest}",
                 digest = say is { Digest.Length: > 0 } ? "sha256:" + say.Digest : null,
                 notes = say?.Notes,
                 bundle_url = say is { BundleUrl.Length: > 0 } ? say.BundleUrl : null,
@@ -411,7 +411,7 @@ internal static partial class ComponentUpdateScenario
             }
         }
 
-        var repo = id switch { "dragon" => "Blakintosh/dragon", "ultrasound" => "Blakintosh/ultrasound", _ => "Blakintosh/stock-library" };
+        var repo = id switch { "dragon" => "Blakintosh/dragon-releases", "ultrasound" => "Blakintosh/ultrasound", _ => "Blakintosh/stocklib-releases" };
         File.WriteAllText(Path.Combine(folder, "latest.json"), JsonSerializer.Serialize(new
         {
             tag_name = "v" + version,
@@ -437,9 +437,9 @@ internal static partial class ComponentUpdateScenario
 
     private static void ParsesTheCli()
     {
-        var good = ComponentUpdater.ParseCheck("""{"current":"1.0.0","latest":"v1.1.0","update_available":true,"url":"https://github.com/Blakintosh/dragon/releases/tag/v1.1.0","digest":"sha256:ABCD","notes":"## 1.1.0\n- one","bundle_url":"https://x/dragon-1.1.0-win-x64.zip","installer_url":null,"error":null}""");
+        var good = ComponentUpdater.ParseCheck("""{"current":"1.0.0","latest":"v1.1.0","update_available":true,"url":"https://github.com/Blakintosh/dragon-releases/releases/tag/v1.1.0","digest":"sha256:ABCD","notes":"## 1.1.0\n- one","bundle_url":"https://x/dragon-1.1.0-win-x64.zip","installer_url":null,"error":null}""");
         Check($"components update: the check JSON is read (latest {good?.Latest}, bundle {good?.BundleUrl}, notes '{good?.Notes}')",
-            good is { Current: "1.0.0", Latest: "1.1.0", PageUrl: "https://github.com/Blakintosh/dragon/releases/tag/v1.1.0", BundleUrl: "https://x/dragon-1.1.0-win-x64.zip", Notes: "• one", Error: null }
+            good is { Current: "1.0.0", Latest: "1.1.0", PageUrl: "https://github.com/Blakintosh/dragon-releases/releases/tag/v1.1.0", BundleUrl: "https://x/dragon-1.1.0-win-x64.zip", Notes: "• one", Error: null }
             && good.Digest is null);
         var hex = new string('a', 64);
         Check("components update: a digest is lower-cased and loses its sha256: prefix",

@@ -359,8 +359,14 @@ internal static class StockScenario
                 rows["dragon"].StateText.Contains("dev build", StringComparison.Ordinal) && !rows["dragon"].StateText.Contains("installed", StringComparison.Ordinal)
                 && rows["dragon"].Detail.Contains("BLACKBIRD_DRAGON", StringComparison.Ordinal));
             Check("components: a missing component offers its product page, an installed one offers nothing",
-                rows["ultrasound"].HasAction && rows["ultrasound"].ActionUrl!.StartsWith("https://", StringComparison.Ordinal)
+                rows["ultrasound"].HasAction && rows["ultrasound"].ActionUrl == ComponentScanner.UltrasoundUrl
                 && !rows["dragon"].HasAction && !rows["blackbird"].HasAction);
+            Check("components: the Get links are the products' GitHub release pages and the update feeds are the binaries-only repos",
+                ComponentScanner.ApexUrl == "https://github.com/Blakintosh/apex/releases/latest"
+                && ComponentScanner.UltrasoundUrl == "https://github.com/Blakintosh/ultrasound/releases/latest"
+                && ComponentScanner.DragonUrl == "https://github.com/Blakintosh/dragon-releases/releases/latest"
+                && ComponentScanner.StockLibraryUrl == "https://github.com/Blakintosh/stocklib-releases/releases/latest"
+                && ComponentSpecs.Dragon.Repository == "Blakintosh/dragon-releases" && ComponentSpecs.StockLibrary.Repository == "Blakintosh/stocklib-releases");
         }
 
         Key(dialog, Avalonia.Input.Key.Escape);

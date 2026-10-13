@@ -15,11 +15,11 @@ namespace Blackbird.Services;
 /// </summary>
 public static class ComponentScanner
 {
-    // The product pages. The parent brand's pages are where the Mod Tools apps are moving.
-    public const string ApexUrl = "https://bo3modtools.com/apex";
-    public const string UltrasoundUrl = "https://bo3modtools.com/ultrasound";
-    public const string DragonUrl = "https://bo3modtools.com/dragon";
-    public const string StockLibraryUrl = "https://bo3modtools.com/stock-library";
+    // The product download pages: the latest GitHub release of each product (Dragon and the Stock Library publish to binaries-only repos).
+    public const string ApexUrl = "https://github.com/Blakintosh/apex/releases/latest";
+    public const string UltrasoundUrl = "https://github.com/Blakintosh/ultrasound/releases/latest";
+    public const string DragonUrl = "https://github.com/Blakintosh/dragon-releases/releases/latest";
+    public const string StockLibraryUrl = "https://github.com/Blakintosh/stocklib-releases/releases/latest";
     public const string MtPluginsUrl = "https://github.com/Aidan601/MTPlugins";
 
     /// <summary>Reads the install. Touches the disk and runs <c>dragon -capabilities</c> (cached), so not on the UI thread.</summary>
