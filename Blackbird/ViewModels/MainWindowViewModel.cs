@@ -63,6 +63,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly DispatcherTimer _buildActivityTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly DispatcherTimer _transientStatusTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     private string? _transientStatusMessage;
+    private const string ScanningStatusText = "Scanning projects…";
     private string _statusTextBeforeTransient = "Ready";
     private readonly Stopwatch _buildActivityStopwatch = new();
 
@@ -1194,7 +1195,7 @@ public partial class MainWindowViewModel : ObservableObject
         var refreshVersion = Interlocked.Increment(ref _projectRefreshVersion);
         IsProjectScanRunning = true;
         if (!IsBuildRunning)
-            StatusText = "Scanning projects\u2026";
+            StatusText = ScanningStatusText;
 
         var loadToolIcons = AssetEditorIcon is null
                             || RadiantIcon is null
@@ -1244,7 +1245,8 @@ public partial class MainWindowViewModel : ObservableObject
         _ = RefreshProjectCapabilitiesAsync();
 
         IsProjectScanRunning = false;
-        if (!HasSelectedProject && !IsBuildRunning)
+        // Selecting a project keeps whatever status it restored; only clear our own message.
+        if (!IsBuildRunning && (!HasSelectedProject || StatusText == ScanningStatusText))
             StatusText = "Ready";
 
         OnPropertyChanged(nameof(HasAnyProjects));
