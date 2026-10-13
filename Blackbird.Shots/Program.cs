@@ -49,6 +49,7 @@ public static partial class Program
             services.AddSingleton<ISteamWorkshopService>(Steam);
             services.AddSingleton<IBuildService>(Build);
             services.AddSingleton(UpdateScenario.CreateUpdater());
+            services.AddSingleton(ComponentUpdateScenario.CreateUpdater());
             services.AddSingleton<IFileSystemService>(sp =>
                 new HarnessFileSystem(new FileSystemService(sp.GetRequiredService<ISettingsService>())).Register());
         };
