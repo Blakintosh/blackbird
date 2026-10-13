@@ -46,11 +46,11 @@ public sealed record ComponentSpec(
 public static class ComponentSpecs
 {
     public static readonly ComponentSpec Dragon = new(
-        "dragon", "Dragon", "Blakintosh/dragon", "bin/bb-linker/bb-linker.exe",
-        [new("bin/bb-linker/bb-linker.exe")],
+        "dragon", "Dragon", "Blakintosh/dragon", "bin/dragon.exe",
+        [new("bin/dragon.exe")],
         CheckArgs: ["-check-update", "-json"],
         VerifyArgs: ["-capabilities"], VerifyField: "version",
-        ProcessNames: ["bb-linker"]);
+        ProcessNames: ["dragon"]);
 
     public static readonly ComponentSpec StockLibrary = new(
         "stocklib", "Stock Library", "Blakintosh/stock-library", "bin/stocklib/stocklib.exe",
@@ -80,7 +80,7 @@ public static class ComponentSpecs
 /// <summary>What a component's CLI printed.</summary>
 public sealed record CliResult(bool Started, int ExitCode, string Output);
 
-/// <summary>What <c>bb-linker -check-update -json</c> / <c>stocklib update-check --json</c> answers.</summary>
+/// <summary>What <c>dragon -check-update -json</c> / <c>stocklib update-check --json</c> answers.</summary>
 public sealed record CheckInfo(string? Current, string? Latest, string? PageUrl, string? BundleUrl, string? Digest, string? Notes, string? Error);
 
 public enum ComponentItemState { Available, Downloading, Ready, Installing, Installed, Failed }
@@ -402,7 +402,7 @@ public sealed partial class ComponentUpdater : ObservableObject
 
     private ComponentUpdate? CheckOne(ComponentSpec spec, string exe, string root, string game)
     {
-        var environment = BbLinker.InstallEnvironment(game, root);
+        var environment = DragonLinker.InstallEnvironment(game, root);
         // The component's own check (it caches daily and knows its feed). A build that predates the flag answers with usage
         // text or an error that isn't JSON; then the same question is asked of the feed directly.
         var cli = _options.Run(exe, spec.CheckArgs, WithFeed(environment, spec)).GetAwaiter().GetResult();
@@ -506,7 +506,7 @@ public sealed partial class ComponentUpdater : ObservableObject
     {
         try
         {
-            var text = spec.Id == "dragon" ? BbLinker.Probe(exe, BbLinker.InstallEnvironment(game, root))?.Version : null;
+            var text = spec.Id == "dragon" ? DragonLinker.Probe(exe, DragonLinker.InstallEnvironment(game, root))?.Version : null;
             text ??= FileVersionInfo.GetVersionInfo(exe).ProductVersion?.Split('+')[0].Trim();
             if (string.IsNullOrEmpty(text) && File.Exists(ComponentPaths.Entry(game, spec.Id))
                 && System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(ComponentPaths.Entry(game, spec.Id))) is System.Text.Json.Nodes.JsonObject entry
@@ -999,7 +999,7 @@ public sealed partial class ComponentUpdater : ObservableObject
     /// <summary>The new exe has to start and, if it says which version it is, say the one that was installed. Null, or what is wrong.</summary>
     private async Task<string?> VerifyAsync(ComponentUpdate item, string exe, string root, string game)
     {
-        var result = await _options.Run(exe, item.Spec.VerifyArgs, WithFeed(BbLinker.InstallEnvironment(game, root), item.Spec));
+        var result = await _options.Run(exe, item.Spec.VerifyArgs, WithFeed(DragonLinker.InstallEnvironment(game, root), item.Spec));
         if (!result.Started)
             return "didn't start";
         var said = ReadField(result.Output, item.Spec.VerifyField);
