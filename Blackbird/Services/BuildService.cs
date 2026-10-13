@@ -26,27 +26,6 @@ public partial class BuildService : IBuildService
         CancellationToken ct,
         IProgress<LinkerEvent>? linkerProgress = null)
     {
-        // Link stamps are written while the next step runs; the build isn't over until they're on disk.
-        var stampWrites = new List<Task>();
-        try
-        {
-            return await RunCommandsAsync(commands, ignoreErrors, progress, stampWrites, ct, linkerProgress).ConfigureAwait(false);
-        }
-        finally
-        {
-            try { await Task.WhenAll(stampWrites).ConfigureAwait(false); }
-            catch (OperationCanceledException) { }
-        }
-    }
-
-    private async Task<bool> RunCommandsAsync(
-        List<BuildCommand> commands,
-        bool ignoreErrors,
-        IProgress<string> progress,
-        List<Task> stampWrites,
-        CancellationToken ct,
-        IProgress<LinkerEvent>? linkerProgress)
-    {
         // A project that depends on stock carry is never linked by the stock linker: it would drop the carried assets.
         // Checked before anything runs, so no compile is wasted on a build that can't link.
         foreach (var step in commands)
@@ -86,32 +65,6 @@ public partial class BuildService : IBuildService
             if (header is not null)
                 progress.Report($"\n{header}\n");
 
-            if (command.LinkStamps.Count > 0)
-            {
-                // Skipped only when every zone the step writes is current; the first stamp holds the output.
-                var stamps = command.LinkStamps;
-                var last = await Task.Run(() => stamps[0].TryGetUpToDate(ct), ct).ConfigureAwait(false);
-                for (var s = 1; last is not null && s < stamps.Count; s++)
-                {
-                    var stamp = stamps[s];
-                    if (await Task.Run(() => stamp.TryGetUpToDate(ct), ct).ConfigureAwait(false) is null)
-                        last = null;
-                }
-                if (last is { } up)
-                {
-                    progress.Report($"\n[launcher] Nothing this link reads has changed since it last ran, so it was skipped. Its last output:\n\n{up.Output}");
-                    if (up.ExitCode != 0)
-                    {
-                        allSucceeded = false;
-                        if (!ignoreErrors)
-                            return false;
-                    }
-                    continue;
-                }
-                foreach (var stamp in stamps)
-                    await Task.Run(stamp.BeginLink, ct).ConfigureAwait(false);
-            }
-
             progress.Report($"\n{command}\n");
 
             var psi = new ProcessStartInfo
@@ -136,8 +89,6 @@ public partial class BuildService : IBuildService
             var outputBuffer = new StringBuilder();
             var outputLock = new object();
             var tail = new LineTail();
-            // The whole output of a stamped link is kept, to show again when the link is skipped next time.
-            var captured = command.LinkStamps.Count == 0 ? null : new StringBuilder();
             using var outputFlushCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var outputFlushTask = FlushOutputPeriodicallyAsync(
                 outputBuffer,
@@ -152,7 +103,7 @@ public partial class BuildService : IBuildService
                 if (e.Data is null)
                     stdoutClosed.TrySetResult();
                 else
-                    AppendOutputLine(outputBuffer, outputLock, e.Data, tail, captured);
+                    AppendOutputLine(outputBuffer, outputLock, e.Data, tail);
             };
 
             process.ErrorDataReceived += (_, e) =>
@@ -160,7 +111,7 @@ public partial class BuildService : IBuildService
                 if (e.Data is null)
                     stderrClosed.TrySetResult();
                 else
-                    AppendOutputLine(outputBuffer, outputLock, e.Data, tail, captured);
+                    AppendOutputLine(outputBuffer, outputLock, e.Data, tail);
             };
 
             LinkerProgressListener? progressListener = null;
@@ -190,9 +141,6 @@ public partial class BuildService : IBuildService
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
-                if (command.PatchUmbraWait)
-                    _ = LinkerUmbraPatch.ApplyAsync(process, ct);
-
                 using var registration = ct.Register(() =>
                 {
                     try
@@ -228,27 +176,10 @@ public partial class BuildService : IBuildService
 
             ct.ThrowIfCancellationRequested();
 
-            // A link that ran to the end ("done:") can vouch for its outputs; one that crashed or was stopped can't.
-            // A step that fell back to the stock linker leaves its stamps unwritten (the fallback writes its own).
             // Only a bb-linker step has a say in falling back; it is told whether its project depends on stock carry.
             var next = command.Fallback is null
                 ? BbLinker.Next.Accept
                 : BbLinker.AfterStep(process.ExitCode, command.CarryMarker is not null);
-            if (captured is not null && next == BbLinker.Next.Accept)
-            {
-                string output;
-                lock (outputLock)
-                    output = captured.ToString();
-                var exitCode = process.ExitCode;
-                if (output.Contains("done: ", StringComparison.Ordinal))
-                    for (var s = 0; s < command.LinkStamps.Count; s++)
-                    {
-                        var ranStamp = command.LinkStamps[s];
-                        var kept = s == 0 ? output : "";
-                        stampWrites.Add(Task.Run(() => ranStamp.RecordLink(exitCode, kept, ct), ct));
-                    }
-            }
-
             // gdtdb exits 1 when it reported errors (duplicate assets, say); those builds keep running it.
             if (command.GdtDbGate is { } ranGate)
             {
@@ -311,7 +242,7 @@ public partial class BuildService : IBuildService
         public string? Value;
     }
 
-    private static void AppendOutputLine(StringBuilder outputBuffer, object outputLock, string line, LineTail? tail = null, StringBuilder? captured = null)
+    private static void AppendOutputLine(StringBuilder outputBuffer, object outputLock, string line, LineTail? tail = null)
     {
         lock (outputLock)
         {

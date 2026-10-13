@@ -349,7 +349,7 @@ internal static class LinkerScenario
         };
 
     private static BuildCommand Stock(string exe, string? header) =>
-        new(exe, ["-modsource", "zm_castle_redux", "-skiploc"], "Link zm_castle_redux") { Header = header };
+        new(exe, ["-modsource", "zm_castle_redux"], "Link zm_castle_redux") { Header = header };
 
     private static string Real(params BuildCommand[] steps)
     {

@@ -3174,7 +3174,6 @@ public partial class MainWindowViewModel : ObservableObject
             updateAdded = true;
         }
 
-        LinkStampEnvironment? linkEnvironment = null;
         var languageArgs = new List<string>();
         var buildLanguage = forcedBuildLanguage ?? GetEffectiveBuildLanguage();
         if (buildLanguage != "All")
@@ -3231,7 +3230,7 @@ public partial class MainWindowViewModel : ObservableObject
             {
                 AddUpdateDb();
                 AddLinkCommands(commands, Path.Combine(_fileSystem.GamePath, "usermaps", mapName), mapName,
-                    languageArgs, [], $"Link {mapName}", isMap: true, linkOnly, ref linkEnvironment);
+                    languageArgs, [], $"Link {mapName}", linkOnly);
             }
 
             // Run game with this map
@@ -3260,7 +3259,7 @@ public partial class MainWindowViewModel : ObservableObject
                 {
                     AddUpdateDb();
                     AddLinkCommands(commands, Path.Combine(_fileSystem.GamePath, "mods", zone.ModName), zone.ZoneName,
-                        languageArgs, ["-fs_game", zone.ModName], $"Link {zone.ModName}/{zone.ZoneName}", isMap: false, linkOnly, ref linkEnvironment);
+                        languageArgs, ["-fs_game", zone.ModName], $"Link {zone.ModName}/{zone.ZoneName}", linkOnly);
                 }
             }
 
@@ -3282,14 +3281,11 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     /// <summary>
-    /// A link as the linker itself runs it: the main zone, then one localized zone per language. A normal build runs
-    /// the two halves as separate steps (<c>-skiploc</c>, then the linker's own <c>-spawnedchild -localized</c> form)
-    /// so each can be skipped when nothing it reads has changed: a script edit relinks only the main zone.
-    /// Prepare for publish keeps the linker's single command and always links, since it makes the shipping output.
+    /// A link: bb-linker when it is installed and switched on, otherwise the stock linker. Either links the main and
+    /// localized zones in one command.
     /// </summary>
     private void AddLinkCommands(List<BuildCommand> commands, string projectFolder, string zoneName,
-        List<string> languageArgs, List<string> extraArgs, string description, bool isMap, bool linkOnly,
-        ref LinkStampEnvironment? environment)
+        List<string> languageArgs, List<string> extraArgs, string description, bool linkOnly)
     {
         var linker = Path.Combine(_fileSystem.ToolsPath, "bin", "linker_modtools.exe");
         var project = Path.GetFileName(projectFolder);
@@ -3322,7 +3318,6 @@ public partial class MainWindowViewModel : ObservableObject
             commands.Add(new BuildCommand(linker, linkOnlyArgs, description)
             {
                 Header = dependsOnCarry ? null : StockHeader(useBbLinker ? BbLinker.PublishNote : switchedOffNote),
-                PatchUmbraWait = isMap,
                 CarryMarker = dependsOnCarry ? carryMarker : null,
                 StockDependency = dependency,
                 CarryBlockedReason = dependsOnCarry
@@ -3335,17 +3330,9 @@ public partial class MainWindowViewModel : ObservableObject
 
         // bb-linker links the main and localized zones in one process, with its own incremental builds,
         // and hands anything it can't link yet to the stock linker (but never a project that needs stock carry).
-        environment ??= new LinkStampEnvironment(_fileSystem.GamePath, _fileSystem.ToolsPath);
         if (useBbLinker && bbLinker is { } bbExe)
         {
             List<string> args = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
-            var languages = languageArgs.Where((_, i) => i % 2 == 1).ToList();
-            var shared = environment;
-            List<LinkStamp> Stamps(string exe) =>
-            [
-                new LinkStamp(shared, projectFolder, zoneName, language: null, BuildCommand.FormatCommand(exe, args)),
-                .. languages.Select(lang => new LinkStamp(shared, projectFolder, zoneName, lang, BuildCommand.FormatCommand(exe, args))),
-            ];
             commands.Add(new BuildCommand(bbExe, args, $"{description} (bb-linker)")
             {
                 // A real build: bb-linker may run snd_convert on the project, as the stock linker does. It links the
@@ -3355,14 +3342,11 @@ public partial class MainWindowViewModel : ObservableObject
                     ["BBL_REAL_BUILD"] = "1",
                 },
                 ReportsProgress = true,
-                LinkStamps = Stamps(bbExe),
                 CarryMarker = dependsOnCarry ? carryMarker : null,
                 StockDependency = dependency,
                 OnLinked = Record(fellBack: false),
                 Fallback = new BuildCommand(linker, args, description)
                 {
-                    PatchUmbraWait = isMap,
-                    LinkStamps = Stamps(linker),
                     OnLinked = Record(fellBack: true),
                 },
             });
@@ -3376,7 +3360,6 @@ public partial class MainWindowViewModel : ObservableObject
             commands.Add(new BuildCommand(linker, anywayArgs, description)
             {
                 Header = BbLinker.StockAnywayHeader(linker, dependency),
-                PatchUmbraWait = isMap,
                 OnLinked = Record(fellBack: false),
             });
             return;
@@ -3397,23 +3380,12 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        List<string> main = [.. languageArgs, .. extraArgs, "-modsource", zoneName, "-skiploc"];
-        commands.Add(new BuildCommand(linker, main, description)
+        List<string> stockArgs = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
+        commands.Add(new BuildCommand(linker, stockArgs, description)
         {
             Header = StockHeader(switchedOffNote),
-            PatchUmbraWait = isMap,
-            LinkStamps = [new LinkStamp(environment, projectFolder, zoneName, language: null, BuildCommand.FormatCommand(linker, main))],
             OnLinked = Record(fellBack: false),
         });
-
-        foreach (var language in languageArgs.Where((_, i) => i % 2 == 1))
-        {
-            List<string> localized = ["-language", language, .. extraArgs, "-modsource", "-spawnedchild", "-localized", zoneName];
-            commands.Add(new BuildCommand(linker, localized, $"{description} ({language})")
-            {
-                LinkStamps = [new LinkStamp(environment, projectFolder, zoneName, language, BuildCommand.FormatCommand(linker, localized))],
-            });
-        }
     }
 
     private BuildCommand BuildGameLaunchCommand(List<string> gameArguments)
