@@ -66,9 +66,9 @@ internal static partial class ComponentUpdateScenario
     {
         var updates = vm.ComponentUpdates;
         var chip = main.FindControl<Button>("ComponentUpdateButton")!;
-        var priorLinker = Environment.GetEnvironmentVariable("BLACKBIRD_BB_LINKER");
+        var priorLinker = Environment.GetEnvironmentVariable("BLACKBIRD_DRAGON");
         var priorFeed = Environment.GetEnvironmentVariable(Updater.FeedVariable);
-        Environment.SetEnvironmentVariable("BLACKBIRD_BB_LINKER", null);
+        Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", null);
         Environment.SetEnvironmentVariable(Updater.FeedVariable, null);
         _bo3Override = Path.Combine(FakeInstall.Root, "components-update-us", "Call of Duty Black Ops III");
         _toolsOverride = Path.Combine(FakeInstall.Root, "components-update-us", "tools-elsewhere");
@@ -241,7 +241,7 @@ internal static partial class ComponentUpdateScenario
             _ultrasoundSays = null;
             _bo3Override = null;
             _toolsOverride = null;
-            Environment.SetEnvironmentVariable("BLACKBIRD_BB_LINKER", priorLinker);
+            Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", priorLinker);
             Environment.SetEnvironmentVariable(Updater.FeedVariable, priorFeed);
             Pump(100);
         }

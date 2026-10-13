@@ -26,18 +26,18 @@ internal static class StockScenario
         var game = FakeInstall.GamePath;
         var scratch = Path.Combine(FakeInstall.Root, "stock");
         Directory.CreateDirectory(scratch);
-        var dragon = Path.Combine(scratch, "bb-linker.cmd");
+        var dragon = Path.Combine(scratch, "dragon.cmd");
         var stockLinker = Path.Combine(scratch, "linker.cmd");
-        var oldDragon = Path.Combine(scratch, "bb-linker-old.cmd");
+        var oldDragon = Path.Combine(scratch, "dragon-old.cmd");
         File.WriteAllText(dragon, Crlf(DragonScript));
         File.WriteAllText(stockLinker, "@echo off\r\necho STOCK LINKER RAN\r\nexit /b 0\r\n");
-        File.WriteAllText(oldDragon, "@echo off\r\necho usage: bb-linker [-progress pipe] -modsource zone\r\nexit /b 0\r\n");
-        var priorLinker = Environment.GetEnvironmentVariable("BLACKBIRD_BB_LINKER");
+        File.WriteAllText(oldDragon, "@echo off\r\necho usage: dragon [-progress pipe] -modsource zone\r\nexit /b 0\r\n");
+        var priorLinker = Environment.GetEnvironmentVariable("BLACKBIRD_DRAGON");
         var added = new List<string>();
 
         try
         {
-            Environment.SetEnvironmentVariable("BLACKBIRD_BB_LINKER", dragon);
+            Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", dragon);
             BuildServiceFallbacks(dragon, oldDragon, stockLinker, out var carryLog);
 
             Registry(vm, game);
@@ -47,25 +47,25 @@ internal static class StockScenario
             Install(game, added, apex: true, stocklib: true, index: true, host: true, plugin: false);
             ComponentsView(main, "components", expectOn: true);
 
-            settings.UseBbLinker = false;
-            ComponentsView(main, "components-link-off", expectOn: false, expectReason: "Link with bb-linker is off");
-            settings.UseBbLinker = true;
+            settings.UseDragon = false;
+            ComponentsView(main, "components-link-off", expectOn: false, expectReason: "Link with Dragon is off");
+            settings.UseDragon = true;
 
-            Environment.SetEnvironmentVariable("BLACKBIRD_BB_LINKER", null);
+            Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", null);
             Install(game, added, apex: false, stocklib: false, index: false, host: false, plugin: false);
             ComponentsView(main, "components-none", expectOn: false, expectReason: "Dragon isn't installed");
 
-            Environment.SetEnvironmentVariable("BLACKBIRD_BB_LINKER", dragon);
+            Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", dragon);
             Install(game, added, apex: true, stocklib: true, index: true, host: true, plugin: true);
             CarryFailureShot(main, vm, carryLog);
             Palette(main);
         }
         finally
         {
-            Environment.SetEnvironmentVariable("BLACKBIRD_BB_LINKER", priorLinker);
+            Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", priorLinker);
             foreach (var path in added.Where(File.Exists))
                 File.Delete(path);
-            var marker = BbLinker.CarryMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
+            var marker = DragonLinker.CarryMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
             if (File.Exists(marker))
                 File.Delete(marker);
             Build.Result = true;
@@ -77,36 +77,36 @@ internal static class StockScenario
 
     private static void FallbackDecision()
     {
-        var table = new (int Exit, bool Carry, BbLinker.Next Expect)[]
+        var table = new (int Exit, bool Carry, DragonLinker.Next Expect)[]
         {
-            (0, false, BbLinker.Next.Accept),
-            (0, true, BbLinker.Next.Accept),
-            (3, true, BbLinker.Next.Accept),
-            (Unsupported, false, BbLinker.Next.UseStockLinker),
-            (Internal, false, BbLinker.Next.UseStockLinker),
-            (Unsupported, true, BbLinker.Next.FailStockCarry),
-            (Internal, true, BbLinker.Next.FailStockCarry),
-            (Carry, false, BbLinker.Next.FailStockCarry),
-            (Carry, true, BbLinker.Next.FailStockCarry),
+            (0, false, DragonLinker.Next.Accept),
+            (0, true, DragonLinker.Next.Accept),
+            (3, true, DragonLinker.Next.Accept),
+            (Unsupported, false, DragonLinker.Next.UseStockLinker),
+            (Internal, false, DragonLinker.Next.UseStockLinker),
+            (Unsupported, true, DragonLinker.Next.FailStockCarry),
+            (Internal, true, DragonLinker.Next.FailStockCarry),
+            (Carry, false, DragonLinker.Next.FailStockCarry),
+            (Carry, true, DragonLinker.Next.FailStockCarry),
         };
-        var wrong = table.Where(t => BbLinker.AfterStep(t.Exit, t.Carry) != t.Expect).Select(t => $"0x{t.Exit:X}/{t.Carry}").ToList();
+        var wrong = table.Where(t => DragonLinker.AfterStep(t.Exit, t.Carry) != t.Expect).Select(t => $"0x{t.Exit:X}/{t.Carry}").ToList();
         Check($"fallback: 0x0BB10001/2 fall back only without a carry marker, 0x0BB10003 never does ({(wrong.Count == 0 ? "all nine rows" : string.Join(", ", wrong))})",
             wrong.Count == 0);
         Check("fallback: MeansUseStock still matches only 0x0BB10001 and 0x0BB10002",
-            BbLinker.MeansUseStock(Unsupported) && BbLinker.MeansUseStock(Internal) && !BbLinker.MeansUseStock(Carry) && !BbLinker.MeansUseStock(1));
+            DragonLinker.MeansUseStock(Unsupported) && DragonLinker.MeansUseStock(Internal) && !DragonLinker.MeansUseStock(Carry) && !DragonLinker.MeansUseStock(1));
 
         var reasons = new[]
         {
-            BbLinker.CarryBlockedReason(false, false, false, false),
-            BbLinker.CarryBlockedReason(true, true, true, true),
-            BbLinker.CarryBlockedReason(true, false, true, true),
-            BbLinker.CarryBlockedReason(true, true, false, false),
-            BbLinker.CarryBlockedReason(true, true, true, false),
+            DragonLinker.CarryBlockedReason(false, false, false, false),
+            DragonLinker.CarryBlockedReason(true, true, true, true),
+            DragonLinker.CarryBlockedReason(true, false, true, true),
+            DragonLinker.CarryBlockedReason(true, true, false, false),
+            DragonLinker.CarryBlockedReason(true, true, true, false),
         };
-        Check($"fallback: a carry project is blocked when the setting is off, bb-linker is missing or can't carry, never otherwise",
+        Check($"fallback: a carry project is blocked when the setting is off, Dragon is missing or can't carry, never otherwise",
             reasons[0] is null && reasons[1] is null
-            && reasons[2]!.Contains("Link with bb-linker is off") && reasons[3]!.Contains("isn't installed") && reasons[4]!.Contains("can't carry")
-            && reasons.Skip(2).All(r => r!.EndsWith(BbLinker.CarryHint, StringComparison.Ordinal)));
+            && reasons[2]!.Contains("Link with Dragon is off") && reasons[3]!.Contains("isn't installed") && reasons[4]!.Contains("can't carry")
+            && reasons.Skip(2).All(r => r!.EndsWith(DragonLinker.CarryHint, StringComparison.Ordinal)));
     }
 
     private static void InstallHash()
@@ -157,54 +157,54 @@ internal static class StockScenario
 
         (bool Ok, string Log) Go(params BuildCommand[] steps) => Task.Run(() => Run(steps)).GetAwaiter().GetResult();
 
-        // 1. A carry project: 0x0BB10003 fails the build with bb-linker's own lines and the hint; the stock linker never runs.
-        var one = Go(Link(dragon, "Link zm_castle_redux (bb-linker)", true, marker, Stock(true), Carry, outcomes));
+        // 1. A carry project: 0x0BB10003 fails the build with Dragon's own lines and the hint; the stock linker never runs.
+        var one = Go(Link(dragon, "Link zm_castle_redux (Dragon)", true, marker, Stock(true), Carry, outcomes));
         carryLog = one.Log;
         Check($"build: 0x0BB10003 fails the build and the stock linker never runs (ok {one.Ok})",
             !one.Ok && !one.Log.Contains("STOCK LINKER RAN") && !one.Log.Contains("is linking it"));
-        Check("build: the failure shows bb-linker's own lines naming the assets, then the hint",
+        Check("build: the failure shows Dragon's own lines naming the assets, then the hint",
             one.Log.Contains("^1ERROR: Dragon stock carry: weapon 'elemental_bow4_zm'")
-            && one.Log.Contains("[launcher] bb-linker couldn't carry every stock asset")
-            && one.Log.Contains("Create a local copy in Apex, or turn on Link with bb-linker."));
+            && one.Log.Contains("[launcher] Dragon couldn't carry every stock asset")
+            && one.Log.Contains("Create a local copy in Apex, or turn on Link with Dragon."));
 
         // 2. A carry project: the two "use the stock linker" codes fail it too.
         foreach (var code in new[] { Unsupported, Internal })
         {
-            var run = Go(Link(dragon, "Link zm_castle_redux (bb-linker)", true, marker, Stock(true), code, outcomes));
+            var run = Go(Link(dragon, "Link zm_castle_redux (Dragon)", true, marker, Stock(true), code, outcomes));
             Check($"build: 0x{code:X8} on a carry project fails instead of falling back (ok {run.Ok})",
-                !run.Ok && !run.Log.Contains("STOCK LINKER RAN") && run.Log.Contains(BbLinker.CarryHint));
+                !run.Ok && !run.Log.Contains("STOCK LINKER RAN") && run.Log.Contains(DragonLinker.CarryHint));
         }
 
         // 3. No marker: the fallback is unchanged.
-        var plain = Go(Link(dragon, "Link zm_castle_redux (bb-linker)", true, null, Stock(true), Unsupported, outcomes));
+        var plain = Go(Link(dragon, "Link zm_castle_redux (Dragon)", true, null, Stock(true), Unsupported, outcomes));
         Check($"build: without a carry marker 0x0BB10001 still falls back to the stock linker (ok {plain.Ok})",
             plain.Ok && plain.Log.Contains("STOCK LINKER RAN") && plain.Log.Contains("so the stock linker is linking it"));
-        var plainCarry = Go(Link(dragon, "Link zm_castle_redux (bb-linker)", true, null, Stock(true), Carry, outcomes));
+        var plainCarry = Go(Link(dragon, "Link zm_castle_redux (Dragon)", true, null, Stock(true), Carry, outcomes));
         Check($"build: without a marker, 0x0BB10003 still never falls back (ok {plainCarry.Ok})",
             !plainCarry.Ok && !plainCarry.Log.Contains("STOCK LINKER RAN"));
 
-        // 4. The stock linker would be used (setting off, bb-linker missing): the build stops before running anything.
-        var reason = BbLinker.CarryBlockedReason(true, useBbLinker: false, linkerFound: true, hasStockCarry: true);
+        // 4. The stock linker would be used (setting off, Dragon missing): the build stops before running anything.
+        var reason = DragonLinker.CarryBlockedReason(true, useDragon: false, linkerFound: true, hasStockCarry: true);
         var blocked = Go(
             new BuildCommand(stockLinker, ["-skip"], "Compile first") { },
             Link(stockLinker, "Link zm_castle_redux", false, marker, null, 0, outcomes, reason));
         Check($"build: a carry project whose link would use the stock linker fails before any step runs (ok {blocked.Ok})",
-            !blocked.Ok && !blocked.Log.Contains("STOCK LINKER RAN") && blocked.Log.Contains("Link with bb-linker is off")
-            && blocked.Log.Contains(BbLinker.CarryHint));
+            !blocked.Ok && !blocked.Log.Contains("STOCK LINKER RAN") && blocked.Log.Contains("Link with Dragon is off")
+            && blocked.Log.Contains(DragonLinker.CarryHint));
 
-        // 5. A bb-linker without the stock-carry capability.
-        var old = Go(Link(oldDragon, "Link zm_castle_redux (bb-linker)", true, marker, Stock(true), 0, outcomes));
-        Check($"build: a bb-linker that can't carry stock fails a carry project before it links (ok {old.Ok})",
+        // 5. A Dragon without the stock-carry capability.
+        var old = Go(Link(oldDragon, "Link zm_castle_redux (Dragon)", true, marker, Stock(true), 0, outcomes));
+        Check($"build: a Dragon that can't carry stock fails a carry project before it links (ok {old.Ok})",
             !old.Ok && old.Log.Contains("can't carry stock assets") && !old.Log.Contains("STOCK LINKER RAN"));
 
-        // 6. A project without a marker, with an old bb-linker, links as before.
-        var oldPlain = Go(Link(oldDragon, "Link zm_castle_redux (bb-linker)", true, null, Stock(true), 0, outcomes));
-        Check($"build: a project without a marker links with an old bb-linker as before (ok {oldPlain.Ok})", oldPlain.Ok);
+        // 6. A project without a marker, with an old Dragon, links as before.
+        var oldPlain = Go(Link(oldDragon, "Link zm_castle_redux (Dragon)", true, null, Stock(true), 0, outcomes));
+        Check($"build: a project without a marker links with an old Dragon as before (ok {oldPlain.Ok})", oldPlain.Ok);
 
         var exits = outcomes.Select(o => $"{o.Linker}{(o.FellBack ? "*" : "")}:{o.ExitCode:X}").ToList();
         Check($"build: every link reports its linker, whether it fell back, and its exit ({string.Join(" ", exits)})",
             outcomes.Count >= 8 && outcomes.Any(o => o is { Linker: "stock", FellBack: true, ExitCode: 0 })
-            && outcomes.Any(o => o is { Linker: "bb-linker", ExitCode: Carry }));
+            && outcomes.Any(o => o is { Linker: "dragon", ExitCode: Carry }));
     }
 
     // ── Registry ────────────────────────────────────────────────────────────
@@ -223,20 +223,20 @@ internal static class StockScenario
         Check($"registry: Blackbird's entry is written under the install hash on start ({Path.GetFileName(Path.GetDirectoryName(path))})",
             entry is not null && entry["id"]?.GetValue<string>() == "blackbird" && entry["version"] is not null
             && entry["written_at"] is not null && entry["last_builds"] is JsonObject
-            && entry["use_bb_linker"]?.GetValue<bool>() == true && entry["bb_linker_effective"]?.GetValue<bool>() == false);
+            && entry["use_dragon"]?.GetValue<bool>() == true && entry["dragon_effective"]?.GetValue<bool>() == false);
 
         // The scenario's linker appeared after the start write; a settings change rewrites the entry and finds it.
-        vm.UseBbLinker = false;
-        WaitFor(() => ReadEntry(game)?["use_bb_linker"]?.GetValue<bool>() == false);
+        vm.UseDragon = false;
+        WaitFor(() => ReadEntry(game)?["use_dragon"]?.GetValue<bool>() == false);
         entry = ReadEntry(game);
         Check("registry: turning the Link setting off rewrites the entry, and the linker stops being effective",
-            entry?["use_bb_linker"]?.GetValue<bool>() == false && entry["bb_linker_effective"]?.GetValue<bool>() == false);
-        vm.UseBbLinker = true;
-        WaitFor(() => ReadEntry(game)?["bb_linker_effective"]?.GetValue<bool>() == true);
+            entry?["use_dragon"]?.GetValue<bool>() == false && entry["dragon_effective"]?.GetValue<bool>() == false);
+        vm.UseDragon = true;
+        WaitFor(() => ReadEntry(game)?["dragon_effective"]?.GetValue<bool>() == true);
         entry = ReadEntry(game);
         Check("registry: with the setting on and a linker that lists stock-carry, the linker is effective at its resolved path",
-            entry?["use_bb_linker"]?.GetValue<bool>() == true && entry["bb_linker_effective"]?.GetValue<bool>() == true
-            && entry["bb_linker_path"]?.GetValue<string>()?.EndsWith("bb-linker.cmd", StringComparison.Ordinal) == true);
+            entry?["use_dragon"]?.GetValue<bool>() == true && entry["dragon_effective"]?.GetValue<bool>() == true
+            && entry["dragon_path"]?.GetValue<string>()?.EndsWith("dragon.cmd", StringComparison.Ordinal) == true);
         Check("registry: no temp files are left beside the entry",
             !Directory.EnumerateFiles(Path.GetDirectoryName(path)!, "*.tmp").Any());
     }
@@ -245,7 +245,7 @@ internal static class StockScenario
 
     private static void Plan(MainWindowViewModel vm, ISettingsService settings, string game, string dragon, List<string> added)
     {
-        var marker = BbLinker.CarryMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
+        var marker = DragonLinker.CarryMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
         Directory.CreateDirectory(Path.GetDirectoryName(marker)!);
         File.WriteAllText(marker, "{\"carry_contract\":1,\"zone\":\"zm_castle_redux\",\"carried\":[{\"type\":\"xmodel\",\"name\":\"p7_zm_zod_master_switch\",\"zone\":\"zm_zod\"}]}");
         // The plan as the build service sees it when nobody answers the link-anyway question (LinkerScenario covers the question).
@@ -263,21 +263,21 @@ internal static class StockScenario
         }
 
         var on = Planned().Where(c => c.CarryMarker is not null).ToList();
-        Check($"plan: with Link with bb-linker on, a carry project links with bb-linker and may not fall back ({on.Count} step, blocked '{on.FirstOrDefault()?.CarryBlockedReason}')",
+        Check($"plan: with Link with Dragon on, a carry project links with Dragon and may not fall back ({on.Count} step, blocked '{on.FirstOrDefault()?.CarryBlockedReason}')",
             on.Count == 1 && on[0].ReportsProgress && on[0].CarryBlockedReason is null && on[0].Fallback is not null
             && on[0].OnLinked is not null && on[0].Fallback!.OnLinked is not null);
 
-        settings.UseBbLinker = false;
+        settings.UseDragon = false;
         var off = Planned().Where(c => c.CarryMarker is not null).ToList();
         Check("plan: with the setting off, the carry project's link is blocked with the reason instead of planned for the stock linker",
-            off.Count == 1 && off[0].CarryBlockedReason is { } why && why.Contains("Link with bb-linker is off") && why.EndsWith(BbLinker.CarryHint, StringComparison.Ordinal));
+            off.Count == 1 && off[0].CarryBlockedReason is { } why && why.Contains("Link with Dragon is off") && why.EndsWith(DragonLinker.CarryHint, StringComparison.Ordinal));
 
-        Environment.SetEnvironmentVariable("BLACKBIRD_BB_LINKER", Path.Combine(FakeInstall.Root, "stock", "missing.cmd"));
-        settings.UseBbLinker = true;
+        Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", Path.Combine(FakeInstall.Root, "stock", "missing.cmd"));
+        settings.UseDragon = true;
         var missing = Planned().Where(c => c.CarryMarker is not null).ToList();
-        Check("plan: with bb-linker missing, the carry project's link is blocked with the reason",
+        Check("plan: with Dragon missing, the carry project's link is blocked with the reason",
             missing.Count == 1 && missing[0].CarryBlockedReason is { } gone && gone.Contains("isn't installed"));
-        Environment.SetEnvironmentVariable("BLACKBIRD_BB_LINKER", dragon);
+        Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", dragon);
 
         File.Delete(marker);
         var plain = Planned();
@@ -297,7 +297,7 @@ internal static class StockScenario
         WaitFor(() => !vm.IsBuildRunning);
         Pump(250);
         Check($"build: a failed carry link lands as a failed build with the hint in the log ('{vm.StatusLine}')",
-            vm.Output.Text.Contains("Create a local copy in Apex, or turn on Link with bb-linker.") && vm.StatusKind == "error");
+            vm.Output.Text.Contains("Create a local copy in Apex, or turn on Link with Dragon.") && vm.StatusKind == "error");
         Shot(main, "main-carry-failed");
         Build.Result = true;
         Build.Tail = null;
@@ -354,9 +354,9 @@ internal static class StockScenario
             Check("components: states follow what is installed (Dragon ready, Stock Library ready, Radiant needs its plugin, Ultrasound missing)",
                 rows["dragon"].IsReady && rows["dragon"].StateText.Contains("stock-carry") && rows["stocklib"].IsReady
                 && rows["radiant"].NeedsAttention && rows["ultrasound"].IsMissing && rows["apex"].IsReady && rows["blackbird"].IsReady);
-            Check($"components: a Dragon named by BLACKBIRD_BB_LINKER shows as a dev build, not as installed ('{rows["dragon"].StateText}')",
+            Check($"components: a Dragon named by BLACKBIRD_DRAGON shows as a dev build, not as installed ('{rows["dragon"].StateText}')",
                 rows["dragon"].StateText.Contains("dev build", StringComparison.Ordinal) && !rows["dragon"].StateText.Contains("installed", StringComparison.Ordinal)
-                && rows["dragon"].Detail.Contains("BLACKBIRD_BB_LINKER", StringComparison.Ordinal));
+                && rows["dragon"].Detail.Contains("BLACKBIRD_DRAGON", StringComparison.Ordinal));
             Check("components: a missing component offers its product page, an installed one offers nothing",
                 rows["ultrasound"].HasAction && rows["ultrasound"].ActionUrl!.StartsWith("https://", StringComparison.Ordinal)
                 && !rows["dragon"].HasAction && !rows["blackbird"].HasAction);

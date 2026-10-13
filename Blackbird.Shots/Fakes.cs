@@ -83,7 +83,7 @@ internal sealed class FakeBuild : IBuildService
     /// <summary>How each planned link "ended", told to its OnLinked as the real build service would; null skips a step.</summary>
     public Func<BuildCommand, LinkOutcome?>? Links { get; set; }
 
-    /// <summary>Reported as the linker's progress once the log head is out, as bb-linker would mid-link.</summary>
+    /// <summary>Reported as the linker's progress once the log head is out, as Dragon would mid-link.</summary>
     public LinkerProgress? LinkerSnapshot { get; set; }
 
     public async Task<bool> RunBuildAsync(List<BuildCommand> commands, bool ignoreErrors, IProgress<string> progress,

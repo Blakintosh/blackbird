@@ -27,7 +27,7 @@ internal static partial class ComponentUpdateScenario
     private static string? _inUseRoot;
     private static string Bo3 => _bo3Override ?? Path.Combine(FakeInstall.Root, "components-update", "Call of Duty Black Ops III");
     private static string Feeds => Path.Combine(FakeInstall.Root, "components-update", "feeds");
-    private static string DragonExe => Path.Combine(Bo3, "bin", "bb-linker", "bb-linker.exe");
+    private static string DragonExe => Path.Combine(Bo3, "bin", "dragon.exe");
     private static string StockExe => Path.Combine(Bo3, "bin", "stocklib", "stocklib.exe");
     private static string PluginDll => Path.Combine(Bo3, "bin", "plugins", "StockLibrary", "StockLibrary.dll");
     private static string PluginIni => Path.Combine(Bo3, "bin", "plugins", "StockLibrary", "StockLibrary.ini");
@@ -61,9 +61,9 @@ internal static partial class ComponentUpdateScenario
     {
         var updates = vm.ComponentUpdates;
         var chip = main.FindControl<Button>("ComponentUpdateButton")!;
-        var priorLinker = Environment.GetEnvironmentVariable("BLACKBIRD_BB_LINKER");
+        var priorLinker = Environment.GetEnvironmentVariable("BLACKBIRD_DRAGON");
         var priorFeed = Environment.GetEnvironmentVariable(Updater.FeedVariable);
-        Environment.SetEnvironmentVariable("BLACKBIRD_BB_LINKER", null);
+        Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", null);
         using var server = new UpdateScenario.ReleaseServer();
         var installs = 0;
         updates.Installed += (_, _) => installs++;
@@ -77,7 +77,7 @@ internal static partial class ComponentUpdateScenario
             var item = main.FindControl<MenuItem>("ComponentUpdatesItem")!;
             Check($"components update: Help > Updates has the switch, on by default ({item.IsChecked}, setting {settings.CheckComponentUpdates})",
                 item.IsChecked == true && vm.CheckComponentUpdates);
-            var dragonZip = Release("dragon", "1.0.1", [("bin/bb-linker/bb-linker.exe", "DRAGON:1.0.1")], filler: 512 * 1024);
+            var dragonZip = Release("dragon", "1.0.1", [("bin/dragon.exe", "DRAGON:1.0.1")], filler: 512 * 1024);
             Release("stocklib", "1.0.1", [("bin/stocklib/stocklib.exe", "STOCKLIB:1.0.1"), ("bin/plugins/StockLibrary/StockLibrary.dll", "PLUGIN:1.0.1"),
                 ("bin/plugins/StockLibrary/StockLibrary.ini", "DEFAULTS")]);
             Environment.SetEnvironmentVariable(Updater.FeedVariable, new Uri(Path.Combine(Feeds, "@@", "latest.json")).AbsoluteUri.Replace("@@", "{id}", StringComparison.Ordinal));
@@ -199,7 +199,7 @@ internal static partial class ComponentUpdateScenario
             SetRegistry("stocklib", "1.0.1");
 
             // A new Dragon that won't run: the old one is put back.
-            var bad = Release("dragon", "1.0.2", [("bin/bb-linker/bb-linker.exe", "BAD:1.0.2")]);
+            var bad = Release("dragon", "1.0.2", [("bin/dragon.exe", "BAD:1.0.2")]);
             _dragonSays = new Answer("1.0.2", new Uri(bad).AbsoluteUri, Sha(bad));
             _stockSays = null;
             _ = updates.CheckAsync(userAsked: true);
@@ -246,7 +246,7 @@ internal static partial class ComponentUpdateScenario
             SetRegistry("stocklib", "1.0.2");
 
             // A download that doesn't match its checksum is never kept or installed.
-            var corrupt = Release("dragon", "1.0.3", [("bin/bb-linker/bb-linker.exe", "DRAGON:1.0.3")]);
+            var corrupt = Release("dragon", "1.0.3", [("bin/dragon.exe", "DRAGON:1.0.3")]);
             _dragonSays = new Answer("1.0.3", new Uri(corrupt).AbsoluteUri, new string('0', 64));
             _stockSays = null;
             _ = updates.CheckAsync(userAsked: true);
@@ -260,14 +260,14 @@ internal static partial class ComponentUpdateScenario
             Click(PanelButton(main, "Later"));
 
             // A Dragon whose CLI predates the contract answers "unknown flag": the feed is read directly.
-            var viaFeed = Release("dragon", "1.0.4", [("bin/bb-linker/bb-linker.exe", "DRAGON:1.0.4")]);
+            var viaFeed = Release("dragon", "1.0.4", [("bin/dragon.exe", "DRAGON:1.0.4")]);
             _dragonSays = null;
             SetRegistry("dragon", "1.0.1");
             Runs.Clear();
             _ = updates.CheckAsync(userAsked: true);
             WaitFor(() => updates.Phase == ComponentPhase.Ready, 8000);
             Check($"components update: an unknown flag falls back to the release feed ({string.Join("; ", Runs.Take(2))}, {updates.Find("dragon")?.Latest})",
-                Runs.Contains("bb-linker.exe -check-update -json") && updates.Find("dragon") is { Latest: "1.0.4", Current: "1.0.1" } d
+                Runs.Contains("dragon.exe -check-update -json") && updates.Find("dragon") is { Latest: "1.0.4", Current: "1.0.1" } d
                 && d.PageUrl == "https://github.com/Blakintosh/dragon/releases/tag/v1.0.4" && d.BundleUrl == new Uri(viaFeed).AbsoluteUri);
             OpenFlyout(chip);
             Click(PanelButton(main, "Install"));
@@ -281,12 +281,12 @@ internal static partial class ComponentUpdateScenario
             Runs.Clear();
             _ = updates.CheckAsync(userAsked: true);
             WaitFor(() => updates.Phase == ComponentPhase.Idle && updates.StatusText.StartsWith("Stock Library is up to date", StringComparison.Ordinal), 8000);
-            Check($"components update: a check that couldn't reach the feed says so without asking again ('{updates.StatusText}', {Runs.Count(r => r.StartsWith("bb-linker", StringComparison.Ordinal))} Dragon runs)",
+            Check($"components update: a check that couldn't reach the feed says so without asking again ('{updates.StatusText}', {Runs.Count(r => r.StartsWith("dragon", StringComparison.Ordinal))} Dragon runs)",
                 updates.StatusText == "Stock Library is up to date. Couldn't check Dragon." && !chip.IsVisible);
             _dragonSays = null;
 
             // Everything current: the Components view says so in one line.
-            Release("dragon", "1.0.4", [("bin/bb-linker/bb-linker.exe", "DRAGON:1.0.4")]);
+            Release("dragon", "1.0.4", [("bin/dragon.exe", "DRAGON:1.0.4")]);
             var final = ShowComponents(main, updates);
             Click(ButtonWithText(final, "Check for updates"));
             WaitFor(() => updates.StatusText == "Dragon and Stock Library are up to date.", 8000);
@@ -301,7 +301,7 @@ internal static partial class ComponentUpdateScenario
         {
             vm.IsBuildRunning = false;
             _inUse = null;
-            Environment.SetEnvironmentVariable("BLACKBIRD_BB_LINKER", priorLinker);
+            Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", priorLinker);
             Environment.SetEnvironmentVariable(Updater.FeedVariable, priorFeed);
             Pump(100);
         }
@@ -374,7 +374,7 @@ internal static partial class ComponentUpdateScenario
             case "-check-update":
                 return Task.FromResult(_dragonSays is { } says
                     ? new CliResult(true, 0, Json(says))
-                    : new CliResult(true, 2, "unknown option: -check-update\nusage: bb-linker [-progress pipe] -modsource zone"));
+                    : new CliResult(true, 2, "unknown option: -check-update\nusage: dragon [-progress pipe] -modsource zone"));
             case "update-check" when text.EndsWith(":old-cli", StringComparison.Ordinal):
                 return Task.FromResult(new CliResult(true, 2, "error: unrecognized subcommand 'update-check'"));
             case "update-check":
@@ -447,7 +447,7 @@ internal static partial class ComponentUpdateScenario
         var trouble = ComponentUpdater.ParseCheck("""{"current":"1.0.0","latest":null,"update_available":false,"error":"the feed can't be reached"}""");
         Check("components update: trouble is an answer too (latest null, an error)", trouble is { Latest: null, Error: "the feed can't be reached" });
         Check("components update: usage text and other JSON are not an answer",
-            ComponentUpdater.ParseCheck("usage: bb-linker [-progress pipe]") is null && ComponentUpdater.ParseCheck("""{"id":"dragon","version":"1.0.0"}""") is null
+            ComponentUpdater.ParseCheck("usage: dragon [-progress pipe]") is null && ComponentUpdater.ParseCheck("""{"id":"dragon","version":"1.0.0"}""") is null
             && ComponentUpdater.ParseCheck("") is null);
     }
 
