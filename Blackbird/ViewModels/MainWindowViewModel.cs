@@ -2861,8 +2861,6 @@ public partial class MainWindowViewModel : ObservableObject
     public Func<string, string, string, Task<bool>>? ConfirmAsync { get; set; }
 
     public const string StockAnywayTitle = "Link without Dragon?";
-    public const string StockAnywayMessage =
-        "This map uses stock assets carried by Dragon. Install Dragon or switch it on; linking with the stock linker will leave those assets out.";
     public const string StockAnywayAction = "Link with stock linker anyway";
 
     /// <summary>
@@ -2876,7 +2874,8 @@ public partial class MainWindowViewModel : ObservableObject
         var commands = BuildCommandList(forceRun: runAfterBuild);
         if (ConfirmAsync is not { } confirm || !commands.Any(c => c.CarryBlockedReason is not null))
             return commands;
-        if (!await confirm(StockAnywayTitle, StockAnywayMessage, StockAnywayAction))
+        var dependency = commands.FirstOrDefault(c => c.CarryBlockedReason is not null)?.StockDependency;
+        if (!await confirm(StockAnywayTitle, BbLinker.StockAnywayMessage(dependency), StockAnywayAction))
         {
             StatusText = "Build not started. This map needs Dragon for its stock assets.";
             return null;
@@ -3297,7 +3296,8 @@ public partial class MainWindowViewModel : ObservableObject
         var bbLinker = BbLinker.Locate(_fileSystem.ToolsPath);
 
         // A project that bb-linker carried stock assets or stock sound aliases into has a marker; the stock linker can't link it.
-        var carryMarker = BbLinker.StockMarker(projectFolder, zoneName);
+        var dependency = BbLinker.StockDependencyOf(projectFolder, zoneName);
+        var carryMarker = dependency?.Marker;
         var dependsOnCarry = carryMarker is not null;
         var useBbLinker = _settings.UseBbLinker && bbLinker is not null;
 
@@ -3324,8 +3324,9 @@ public partial class MainWindowViewModel : ObservableObject
                 Header = dependsOnCarry ? null : StockHeader(useBbLinker ? BbLinker.PublishNote : switchedOffNote),
                 PatchUmbraWait = isMap,
                 CarryMarker = dependsOnCarry ? carryMarker : null,
+                StockDependency = dependency,
                 CarryBlockedReason = dependsOnCarry
-                    ? BbLinker.CarryBlockedReason(true, _settings.UseBbLinker, bbLinker is not null, true)
+                    ? BbLinker.CarryBlockedReason(true, _settings.UseBbLinker, bbLinker is not null, true, dependency)
                     : null,
                 OnLinked = Record(fellBack: false),
             });
@@ -3356,6 +3357,7 @@ public partial class MainWindowViewModel : ObservableObject
                 ReportsProgress = true,
                 LinkStamps = Stamps(bbExe),
                 CarryMarker = dependsOnCarry ? carryMarker : null,
+                StockDependency = dependency,
                 OnLinked = Record(fellBack: false),
                 Fallback = new BuildCommand(linker, args, description)
                 {
@@ -3373,7 +3375,7 @@ public partial class MainWindowViewModel : ObservableObject
             List<string> anywayArgs = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
             commands.Add(new BuildCommand(linker, anywayArgs, description)
             {
-                Header = BbLinker.StockAnywayHeader(linker),
+                Header = BbLinker.StockAnywayHeader(linker, dependency),
                 PatchUmbraWait = isMap,
                 OnLinked = Record(fellBack: false),
             });
@@ -3388,7 +3390,8 @@ public partial class MainWindowViewModel : ObservableObject
             commands.Add(new BuildCommand(linker, blockedArgs, description)
             {
                 CarryMarker = carryMarker,
-                CarryBlockedReason = BbLinker.CarryBlockedReason(true, _settings.UseBbLinker, bbLinker is not null, true),
+                StockDependency = dependency,
+                CarryBlockedReason = BbLinker.CarryBlockedReason(true, _settings.UseBbLinker, bbLinker is not null, true, dependency),
                 OnLinked = Record(fellBack: false),
             });
             return;

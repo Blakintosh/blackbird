@@ -44,15 +44,85 @@ public static class BbLinker
     public static string SoundMarkerPath(string projectFolder, string zoneName) =>
         Path.Combine(projectFolder, "zone_source", zoneName + ".stocksound.json");
 
-    /// <summary>The project's stock marker (carry first, then sound), or null when it depends on neither.</summary>
-    public static string? StockMarker(string projectFolder, string zoneName) =>
-        CarryMarkerPath(projectFolder, zoneName) is var carry && File.Exists(carry) ? carry
-        : SoundMarkerPath(projectFolder, zoneName) is var sound && File.Exists(sound) ? sound
-        : null;
+    /// <summary>
+    /// What a map needs Dragon for, read from its marker. <see cref="Assets"/> and <see cref="SoundAliases"/> are counts,
+    /// or -1 when the marker doesn't say (an older Dragon, or a marker that can't be read: still a dependency).
+    /// </summary>
+    public sealed record StockDependency(string Marker, int Assets, int SoundAliases)
+    {
+        /// <summary>Only stock sounds: no carried asset, at least one carried alias (or an older Dragon's sound request).</summary>
+        public bool SoundOnly => Assets == 0 && SoundAliases != 0;
 
-    /// <summary>The capability a bb-linker needs to link a project with this marker (stock-sound for a sound-only one).</summary>
-    public static string CapabilityFor(string marker) =>
-        marker.EndsWith(".stocksound.json", StringComparison.OrdinalIgnoreCase) ? StockSoundCapability : StockCarryCapability;
+        public string Capability => SoundOnly ? StockSoundCapability : StockCarryCapability;
+
+        /// <summary>"stock assets", or "3 stock sounds" for a sound-only map.</summary>
+        public string What => !SoundOnly ? "stock assets"
+            : SoundAliases > 0 ? $"{SoundAliases} stock sound{(SoundAliases == 1 ? "" : "s")}"
+            : "stock sounds";
+
+        /// <summary>How to build without Dragon: local copies in Apex (its Stock sounds view for sounds), or the switch.</summary>
+        public string Hint => SoundOnly ? SoundHint : CarryHint;
+    }
+
+    /// <summary>The hint next to a refusal for a map that uses only stock sounds.</summary>
+    public const string SoundHint = "Apex's Stock sounds view can make local copies of them, or turn on Link with bb-linker.";
+
+    /// <summary>
+    /// What the map's zone needs Dragon for, or null when nothing. <c>.stockcarry.json</c> is the dependency marker: it
+    /// counts when its <c>carried</c> list isn't empty or its <c>sound_aliases</c> is above 0 (Dragon 1.0.0 writes one
+    /// with an empty list for a map that uses only stock sounds). An older Dragon marked a sound-only map with
+    /// <c>.stocksound.json</c> alone, which still counts. Reads one small file; fine on the UI thread.
+    /// </summary>
+    public static StockDependency? StockDependencyOf(string projectFolder, string zoneName)
+    {
+        var carry = CarryMarkerPath(projectFolder, zoneName);
+        if (File.Exists(carry))
+        {
+            var (assets, aliases) = ReadCarryMarker(carry);
+            if (assets != 0 || aliases != 0)
+                return new StockDependency(carry, assets, aliases);
+        }
+        var sound = SoundMarkerPath(projectFolder, zoneName);
+        return File.Exists(sound) ? new StockDependency(sound, 0, ReadSoundRequest(sound)) : null;
+    }
+
+    private static (int Assets, int Aliases) ReadCarryMarker(string path)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                return (-1, 0);
+            var assets = root.TryGetProperty("carried", out var carried) && carried.ValueKind == JsonValueKind.Array
+                ? carried.GetArrayLength() : -1;
+            var aliases = root.TryGetProperty("sound_aliases", out var n) && n.ValueKind == JsonValueKind.Number && n.TryGetInt32(out var count)
+                ? count : 0;
+            return (assets, aliases);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return (-1, 0); // a marker being rewritten, or not JSON: still a dependency
+        }
+    }
+
+    private static int ReadSoundRequest(string path)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("aliases", out var aliases))
+            {
+                if (aliases.ValueKind == JsonValueKind.Array && aliases.GetArrayLength() > 0)
+                    return aliases.GetArrayLength();
+                if (aliases.ValueKind == JsonValueKind.Number && aliases.TryGetInt32(out var count) && count > 0)
+                    return count;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
+        return -1;
+    }
 
     /// <summary>The capability <c>bb-linker -capabilities</c> lists when it can carry stock sound aliases.</summary>
     public const string StockSoundCapability = "stock-sound";
@@ -162,8 +232,13 @@ public static class BbLinker
     /// The line before a carry map's link when the user chose to link it with the stock linker anyway: a warning, so the
     /// build counts it and the log says what is missing.
     /// </summary>
-    public static string StockAnywayHeader(string linkerExe) =>
-        $"^3[launcher] Linking with the stock linker ({Path.GetFileName(linkerExe)}) anyway: the stock assets Dragon carried for this map are left out.";
+    public static string StockAnywayHeader(string linkerExe, StockDependency? dependency = null) =>
+        $"^3[launcher] Linking with the stock linker ({Path.GetFileName(linkerExe)}) anyway: the {dependency?.What ?? "stock assets"} Dragon carried for this map are left out.";
+
+    /// <summary>The question before linking a map that needs Dragon with the stock linker.</summary>
+    public static string StockAnywayMessage(StockDependency? dependency) =>
+        $"This map uses {dependency?.What ?? "stock assets"} carried by Dragon. Install Dragon or switch it on; linking with the stock linker will leave {(dependency?.SoundOnly == true ? "those sounds" : "those assets")} out."
+        + (dependency?.SoundOnly == true ? " Apex's Stock sounds view can make local copies of them." : "");
 
     /// <summary>The plain line a build log shows before the stock linker's first link of a build.</summary>
     public static string StockHeader(string linkerExe, string? note) =>
@@ -266,25 +341,35 @@ public static class BbLinker
     /// Why a project that depends on stock carry can't be linked with the linker about to run, or null when it can.
     /// <paramref name="useBbLinker"/> is Tools > Link with bb-linker; the other two describe the bb-linker that would run.
     /// </summary>
-    public static string? CarryBlockedReason(bool projectDependsOnCarry, bool useBbLinker, bool linkerFound, bool hasStockCarry)
+    public static string? CarryBlockedReason(bool projectDependsOnCarry, bool useBbLinker, bool linkerFound, bool hasStockCarry,
+        StockDependency? dependency = null)
     {
         if (!projectDependsOnCarry)
             return null;
-        const string head = "This project uses stock assets that only bb-linker can link";
+        var what = dependency?.What ?? "stock assets";
+        var hint = dependency?.Hint ?? CarryHint;
+        var head = $"This project uses {what} that only bb-linker can link";
         if (!useBbLinker)
-            return $"{head}, and Link with bb-linker is off, so the stock linker would drop them. {CarryHint}";
+            return $"{head}, and Link with bb-linker is off, so the stock linker would drop them. {hint}";
         if (!linkerFound)
-            return $"{head}, and bb-linker isn't installed, so the stock linker would drop them. {CarryHint}";
+            return $"{head}, and bb-linker isn't installed, so the stock linker would drop them. {hint}";
         if (!hasStockCarry)
-            return $"{head}, and this bb-linker can't carry stock assets, so the stock linker would drop them. {CarryHint}";
+            return $"{head}, and this bb-linker can't carry {(dependency?.SoundOnly == true ? "stock sounds" : "stock assets")}, so the stock linker would drop them. {hint}";
         return null;
     }
 
     /// <summary>The line after a failed link of a carry project (bb-linker's own lines above it name the assets).</summary>
-    public static string CarryFailureMessage(int exitCode) =>
-        exitCode == ExitStockCarry
-            ? $"bb-linker couldn't carry every stock asset this project uses (exit 0x{exitCode:X8}). The stock linker can't link them, so it wasn't used. {CarryHint}"
-            : $"bb-linker couldn't link this project (exit 0x{exitCode:X8}), and it uses stock assets only bb-linker can link, so the stock linker wasn't used. {CarryHint}";
+    public static string CarryFailureMessage(int exitCode, StockDependency? dependency = null)
+    {
+        var hint = dependency?.Hint ?? CarryHint;
+        if (dependency?.SoundOnly == true)
+            return exitCode == ExitStockCarry
+                ? $"bb-linker couldn't carry every stock sound this project uses (exit 0x{exitCode:X8}). The stock linker can't link them, so it wasn't used. {hint}"
+                : $"bb-linker couldn't link this project (exit 0x{exitCode:X8}), and it uses {dependency.What} only bb-linker can link, so the stock linker wasn't used. {hint}";
+        return exitCode == ExitStockCarry
+            ? $"bb-linker couldn't carry every stock asset this project uses (exit 0x{exitCode:X8}). The stock linker can't link them, so it wasn't used. {hint}"
+            : $"bb-linker couldn't link this project (exit 0x{exitCode:X8}), and it uses stock assets only bb-linker can link, so the stock linker wasn't used. {hint}";
+    }
 
     private static readonly ConcurrentDictionary<(string Path, DateTime Stamp), Task<string>> Usage = new();
 

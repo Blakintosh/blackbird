@@ -55,7 +55,8 @@ public partial class BuildService : IBuildService
             if (blocked is null && step.CarryMarker is not null && step.Fallback is not null)
             {
                 var info = await BbLinker.ProbeAsync(step.Executable, step.Environment).ConfigureAwait(false);
-                blocked = BbLinker.CarryBlockedReason(true, true, true, info?.Has(BbLinker.CapabilityFor(step.CarryMarker)) == true);
+                blocked = BbLinker.CarryBlockedReason(true, true, true,
+                    info?.Has(step.StockDependency?.Capability ?? BbLinker.StockCarryCapability) == true, step.StockDependency);
             }
             if (blocked is null)
                 continue;
@@ -266,7 +267,7 @@ public partial class BuildService : IBuildService
 
             if (next == BbLinker.Next.FailStockCarry)
             {
-                progress.Report($"\n[launcher] {BbLinker.CarryFailureMessage(process.ExitCode)}\n");
+                progress.Report($"\n[launcher] {BbLinker.CarryFailureMessage(process.ExitCode, command.StockDependency)}\n");
                 command.OnLinked?.Invoke(new LinkOutcome(LinkerName(command), false, process.ExitCode));
                 allSucceeded = false;
                 if (!ignoreErrors)

@@ -38,6 +38,9 @@ public class BuildCommand
     /// </summary>
     public string? CarryMarker { get; init; }
 
+    /// <summary>What the marker says the map needs Dragon for (stock assets, or only stock sounds), for the messages.</summary>
+    public Services.BbLinker.StockDependency? StockDependency { get; init; }
+
     /// <summary>For a link that would use the stock linker for a carry project: why it can't. The step fails with this instead of running.</summary>
     public string? CarryBlockedReason { get; init; }
 
