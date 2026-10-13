@@ -374,7 +374,7 @@ internal static partial class ComponentUpdateScenario
             case "-check-update":
                 return Task.FromResult(_dragonSays is { } says
                     ? new CliResult(true, 0, Json(says))
-                    : new CliResult(true, 2, "unknown option: -check-update\nusage: dragon [-progress pipe] -modsource zone"));
+                    : new CliResult(true, 2, "error: the update check failed to start"));
             case "update-check" when text.EndsWith(":old-cli", StringComparison.Ordinal):
                 return Task.FromResult(new CliResult(true, 2, "error: unrecognized subcommand 'update-check'"));
             case "update-check":
@@ -446,8 +446,8 @@ internal static partial class ComponentUpdateScenario
             ComponentUpdater.ParseCheck($$"""{"latest":"1.0.1","digest":"sha256:{{hex.ToUpperInvariant()}}"}""")?.Digest == hex);
         var trouble = ComponentUpdater.ParseCheck("""{"current":"1.0.0","latest":null,"update_available":false,"error":"the feed can't be reached"}""");
         Check("components update: trouble is an answer too (latest null, an error)", trouble is { Latest: null, Error: "the feed can't be reached" });
-        Check("components update: usage text and other JSON are not an answer",
-            ComponentUpdater.ParseCheck("usage: dragon [-progress pipe]") is null && ComponentUpdater.ParseCheck("""{"id":"dragon","version":"1.0.0"}""") is null
+        Check("components update: plain text and other JSON are not an answer",
+            ComponentUpdater.ParseCheck("error: the update check failed to start") is null && ComponentUpdater.ParseCheck("""{"id":"dragon","version":"1.0.0"}""") is null
             && ComponentUpdater.ParseCheck("") is null);
     }
 

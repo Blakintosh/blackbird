@@ -27,6 +27,12 @@ public static class DragonLinker
     /// </summary>
     public const int ExitStockCarry = 0x0BB10003;
 
+    /// <summary>
+    /// The link's outputs couldn't be replaced because the game holds them. A failed build with Dragon's own ERROR line,
+    /// never a fallback: the stock linker would hit the same locked files.
+    /// </summary>
+    public const int ExitOutputsHeld = 0x0BB10004;
+
     /// <summary>The capability <c>dragon -capabilities</c> lists when it can carry stock assets.</summary>
     public const string StockCarryCapability = "stock-carry";
 
@@ -38,27 +44,19 @@ public static class DragonLinker
         Path.Combine(projectFolder, "zone_source", zoneName + ".stockcarry.json");
 
     /// <summary>
-    /// The marker Dragon writes beside a zone's source when a link carried stock sound aliases (Ultrasound reads it
-    /// for their audio). The stock linker can't link those aliases either, so it counts exactly like a carry marker.
-    /// </summary>
-    public static string SoundMarkerPath(string projectFolder, string zoneName) =>
-        Path.Combine(projectFolder, "zone_source", zoneName + ".stocksound.json");
-
-    /// <summary>
-    /// What a map needs Dragon for, read from its marker. <see cref="Assets"/> and <see cref="SoundAliases"/> are counts,
-    /// or -1 when the marker doesn't say (an older Dragon, or a marker that can't be read: still a dependency).
+    /// What a map needs Dragon for, read from its marker. <see cref="Assets"/> is the count of carried assets (-1 when the
+    /// marker can't be read: still a dependency), <see cref="SoundAliases"/> the count of carried sound aliases.
     /// </summary>
     public sealed record StockDependency(string Marker, int Assets, int SoundAliases)
     {
-        /// <summary>Only stock sounds: no carried asset, at least one carried alias (or an older Dragon's sound request).</summary>
-        public bool SoundOnly => Assets == 0 && SoundAliases != 0;
+        /// <summary>Only stock sounds: no carried asset, at least one carried alias.</summary>
+        public bool SoundOnly => Assets == 0 && SoundAliases > 0;
 
         public string Capability => SoundOnly ? StockSoundCapability : StockCarryCapability;
 
         /// <summary>"stock assets", or "3 stock sounds" for a sound-only map.</summary>
         public string What => !SoundOnly ? "stock assets"
-            : SoundAliases > 0 ? $"{SoundAliases} stock sound{(SoundAliases == 1 ? "" : "s")}"
-            : "stock sounds";
+            : $"{SoundAliases} stock sound{(SoundAliases == 1 ? "" : "s")}";
 
         /// <summary>How to build without Dragon: local copies in Apex (its Stock sounds view for sounds), or the switch.</summary>
         public string Hint => SoundOnly ? SoundHint : CarryHint;
@@ -69,21 +67,16 @@ public static class DragonLinker
 
     /// <summary>
     /// What the map's zone needs Dragon for, or null when nothing. <c>.stockcarry.json</c> is the dependency marker: it
-    /// counts when its <c>carried</c> list isn't empty or its <c>sound_aliases</c> is above 0 (Dragon 1.0.0 writes one
-    /// with an empty list for a map that uses only stock sounds). An older Dragon marked a sound-only map with
-    /// <c>.stocksound.json</c> alone, which still counts. Reads one small file; fine on the UI thread.
+    /// counts when its <c>carried</c> list isn't empty or its <c>sound_aliases</c> is above 0 (a map that uses only stock
+    /// sounds has an empty list). Reads one small file; fine on the UI thread.
     /// </summary>
     public static StockDependency? StockDependencyOf(string projectFolder, string zoneName)
     {
         var carry = CarryMarkerPath(projectFolder, zoneName);
-        if (File.Exists(carry))
-        {
-            var (assets, aliases) = ReadCarryMarker(carry);
-            if (assets != 0 || aliases != 0)
-                return new StockDependency(carry, assets, aliases);
-        }
-        var sound = SoundMarkerPath(projectFolder, zoneName);
-        return File.Exists(sound) ? new StockDependency(sound, 0, ReadSoundRequest(sound)) : null;
+        if (!File.Exists(carry))
+            return null;
+        var (assets, aliases) = ReadCarryMarker(carry);
+        return assets != 0 || aliases != 0 ? new StockDependency(carry, assets, aliases) : null;
     }
 
     private static (int Assets, int Aliases) ReadCarryMarker(string path)
@@ -104,24 +97,6 @@ public static class DragonLinker
         {
             return (-1, 0); // a marker being rewritten, or not JSON: still a dependency
         }
-    }
-
-    private static int ReadSoundRequest(string path)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(File.ReadAllText(path));
-            var root = document.RootElement;
-            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("aliases", out var aliases))
-            {
-                if (aliases.ValueKind == JsonValueKind.Array && aliases.GetArrayLength() > 0)
-                    return aliases.GetArrayLength();
-                if (aliases.ValueKind == JsonValueKind.Number && aliases.TryGetInt32(out var count) && count > 0)
-                    return count;
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
-        return -1;
     }
 
     /// <summary>The capability <c>dragon -capabilities</c> lists when it can carry stock sound aliases.</summary>
@@ -147,9 +122,7 @@ public static class DragonLinker
 
     /// <summary>The installed Dragon's place, ignoring <see cref="OverrideVariable"/>, whether or not it exists: <c>bin\dragon.exe</c>.</summary>
     public static string InstalledPath(string? toolsPath = null) =>
-        string.IsNullOrEmpty(toolsPath)
-            ? Path.Combine(AppContext.BaseDirectory, "dragon.exe")
-            : Path.Combine(toolsPath, "bin", "dragon.exe");
+        string.IsNullOrEmpty(toolsPath) ? "" : Path.Combine(toolsPath, "bin", "dragon.exe");
 
     /// <summary>Names a Dragon to use instead of the installed one (a developer's own build).</summary>
     public const string OverrideVariable = "BLACKBIRD_DRAGON";

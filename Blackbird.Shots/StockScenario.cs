@@ -17,6 +17,7 @@ internal static class StockScenario
     private const int Unsupported = 0x0BB10001;
     private const int Internal = 0x0BB10002;
     private const int Carry = 0x0BB10003;
+    private const int Held = DragonLinker.ExitOutputsHeld;
 
     public static void Run(MainWindow main, MainWindowViewModel vm, ISettingsService settings)
     {
@@ -28,17 +29,15 @@ internal static class StockScenario
         Directory.CreateDirectory(scratch);
         var dragon = Path.Combine(scratch, "dragon.cmd");
         var stockLinker = Path.Combine(scratch, "linker.cmd");
-        var oldDragon = Path.Combine(scratch, "dragon-old.cmd");
         File.WriteAllText(dragon, Crlf(DragonScript));
         File.WriteAllText(stockLinker, "@echo off\r\necho STOCK LINKER RAN\r\nexit /b 0\r\n");
-        File.WriteAllText(oldDragon, "@echo off\r\necho usage: dragon [-progress pipe] -modsource zone\r\nexit /b 0\r\n");
         var priorLinker = Environment.GetEnvironmentVariable("BLACKBIRD_DRAGON");
         var added = new List<string>();
 
         try
         {
             Environment.SetEnvironmentVariable("BLACKBIRD_DRAGON", dragon);
-            BuildServiceFallbacks(dragon, oldDragon, stockLinker, out var carryLog);
+            BuildServiceFallbacks(dragon, stockLinker, out var carryLog);
 
             Registry(vm, game);
             Plan(vm, settings, game, dragon, added);
@@ -88,12 +87,14 @@ internal static class StockScenario
             (Internal, true, DragonLinker.Next.FailStockCarry),
             (Carry, false, DragonLinker.Next.FailStockCarry),
             (Carry, true, DragonLinker.Next.FailStockCarry),
+            (Held, false, DragonLinker.Next.Accept),
+            (Held, true, DragonLinker.Next.Accept),
         };
         var wrong = table.Where(t => DragonLinker.AfterStep(t.Exit, t.Carry) != t.Expect).Select(t => $"0x{t.Exit:X}/{t.Carry}").ToList();
-        Check($"fallback: 0x0BB10001/2 fall back only without a carry marker, 0x0BB10003 never does ({(wrong.Count == 0 ? "all nine rows" : string.Join(", ", wrong))})",
+        Check($"fallback: 0x0BB10001/2 fall back only without a carry marker, 0x0BB10003 never does ({(wrong.Count == 0 ? "all eleven rows" : string.Join(", ", wrong))})",
             wrong.Count == 0);
         Check("fallback: MeansUseStock still matches only 0x0BB10001 and 0x0BB10002",
-            DragonLinker.MeansUseStock(Unsupported) && DragonLinker.MeansUseStock(Internal) && !DragonLinker.MeansUseStock(Carry) && !DragonLinker.MeansUseStock(1));
+            DragonLinker.MeansUseStock(Unsupported) && DragonLinker.MeansUseStock(Internal) && !DragonLinker.MeansUseStock(Carry) && !DragonLinker.MeansUseStock(Held) && !DragonLinker.MeansUseStock(1));
 
         var reasons = new[]
         {
@@ -138,7 +139,7 @@ internal static class StockScenario
             OnLinked = o => { lock (into) into.Add(o); },
         };
 
-    private static void BuildServiceFallbacks(string dragon, string oldDragon, string stockLinker, out string carryLog)
+    private static void BuildServiceFallbacks(string dragon, string stockLinker, out string carryLog)
     {
         var marker = Path.Combine(Path.GetDirectoryName(dragon)!, "zm_castle_redux.stockcarry.json");
         File.WriteAllText(marker, "{\"carry_contract\":1,\"carried\":[]}");
@@ -183,6 +184,15 @@ internal static class StockScenario
         Check($"build: without a marker, 0x0BB10003 still never falls back (ok {plainCarry.Ok})",
             !plainCarry.Ok && !plainCarry.Log.Contains("STOCK LINKER RAN"));
 
+        // 3b. 0x0BB10004 (the game holds the outputs): the build fails with Dragon's ERROR line and the stock linker never runs.
+        foreach (var withMarker in new[] { false, true })
+        {
+            var held = Go(Link(dragon, "Link zm_castle_redux (Dragon)", true, withMarker ? marker : null, Stock(true), Held, outcomes));
+            Check($"build: 0x0BB10004 fails the build, shows Dragon's ERROR line and never falls back (marker {withMarker}, ok {held.Ok})",
+                !held.Ok && !held.Log.Contains("STOCK LINKER RAN") && !held.Log.Contains("is linking it")
+                && held.Log.Contains("^1ERROR: Dragon: the zone's outputs are held by the game"));
+        }
+
         // 4. The stock linker would be used (setting off, Dragon missing): the build stops before running anything.
         var reason = DragonLinker.CarryBlockedReason(true, useDragon: false, linkerFound: true, hasStockCarry: true);
         var blocked = Go(
@@ -191,15 +201,6 @@ internal static class StockScenario
         Check($"build: a carry project whose link would use the stock linker fails before any step runs (ok {blocked.Ok})",
             !blocked.Ok && !blocked.Log.Contains("STOCK LINKER RAN") && blocked.Log.Contains("Link with Dragon is off")
             && blocked.Log.Contains(DragonLinker.CarryHint));
-
-        // 5. A Dragon without the stock-carry capability.
-        var old = Go(Link(oldDragon, "Link zm_castle_redux (Dragon)", true, marker, Stock(true), 0, outcomes));
-        Check($"build: a Dragon that can't carry stock fails a carry project before it links (ok {old.Ok})",
-            !old.Ok && old.Log.Contains("can't carry stock assets") && !old.Log.Contains("STOCK LINKER RAN"));
-
-        // 6. A project without a marker, with an old Dragon, links as before.
-        var oldPlain = Go(Link(oldDragon, "Link zm_castle_redux (Dragon)", true, null, Stock(true), 0, outcomes));
-        Check($"build: a project without a marker links with an old Dragon as before (ok {oldPlain.Ok})", oldPlain.Ok);
 
         var exits = outcomes.Select(o => $"{o.Linker}{(o.FellBack ? "*" : "")}:{o.ExitCode:X}").ToList();
         Check($"build: every link reports its linker, whether it fell back, and its exit ({string.Join(" ", exits)})",
@@ -384,8 +385,12 @@ internal static class StockScenario
         if "%~1"=="-capabilities" goto caps
         echo ^^7Linking zone zm_castle_redux
         if "%FAKE_BBL_EXIT%"=="0" goto done
+        if "%FAKE_BBL_EXIT%"=="196149252" goto held
         echo ^^1ERROR: Dragon stock carry: weapon 'elemental_bow4_zm' needs streamed data that no zone package holds. Use "Create local copy" in Apex for this asset.
         echo ^^1ERROR: Dragon stock carry: xmodel 'p7_zm_zod_master_switch' needs image 't7_zm_zod_switch_c', which zm_zod does not define.
+        goto done
+        :held
+        echo ^^1ERROR: Dragon: the zone's outputs are held by the game
         :done
         exit /b %FAKE_BBL_EXIT%
         :caps

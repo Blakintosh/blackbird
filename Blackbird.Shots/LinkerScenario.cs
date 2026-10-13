@@ -130,9 +130,9 @@ internal static class LinkerScenario
             var echoed = Real(new BuildCommand(envEcho, ["-modsource", "zm_castle_redux"], "Link") { ReportsProgress = true, Environment = bbStep?.Environment });
             Check("linker: the Dragon process sees that install", echoed.Contains($"install={expectInstall}\n", StringComparison.Ordinal));
 
-            // 8. An older Dragon marked a map that uses only stock sounds with .stocksound.json alone; it still counts.
-            var soundMarker = DragonLinker.SoundMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
-            File.WriteAllText(soundMarker, "{\"stock_sound_contract\":1,\"entries\":[]}");
+            // 8. A map that uses only stock sounds is marked by .stockcarry.json with an empty carried list and sound_aliases above 0.
+            var soundMarker = marker;
+            File.WriteAllText(soundMarker, "{\"carry_contract\":1,\"carried\":[],\"sound_aliases\":3}");
             try
             {
                 var soundStep = Planned(vm).FirstOrDefault(c => c.ReportsProgress);
@@ -221,27 +221,21 @@ internal static class LinkerScenario
             // 11. Dragon 1.0.0's single marker: .stockcarry.json counts when it lists carried assets or sound_aliases > 0.
             var folder = FakeInstall.CastleFolder;
             const string zone = "zm_castle_redux";
-            DragonLinker.StockDependency? With(string? carry, string? sound)
+            DragonLinker.StockDependency? With(string carry)
             {
-                if (carry is null) File.Delete(marker); else File.WriteAllText(marker, carry);
-                var soundFile = DragonLinker.SoundMarkerPath(folder, zone);
-                if (sound is null) File.Delete(soundFile); else File.WriteAllText(soundFile, sound);
+                File.WriteAllText(marker, carry);
                 return DragonLinker.StockDependencyOf(folder, zone);
             }
             try
             {
-                var empty = With("{\"carry_contract\":1,\"carried\":[],\"sound_aliases\":0}", null);
-                var soundsOnly = With("{\"carry_contract\":1,\"carried\":[],\"sound_aliases\":3}", null);
-                var assets = With("{\"carry_contract\":1,\"carried\":[{\"type\":\"xmodel\",\"name\":\"m\",\"zone\":\"z\"}],\"sound_aliases\":2}", null);
-                var broken = With("{ not json", null);
-                var older = With(null, "{\"stock_sound_contract\":1,\"aliases\":[\"a\",\"b\"],\"entries\":[]}");
-                var bothOld = With("{\"carry_contract\":1,\"carried\":[]}", "{\"stock_sound_contract\":1,\"entries\":[]}");
+                var empty = With("{\"carry_contract\":1,\"carried\":[],\"sound_aliases\":0}");
+                var soundsOnly = With("{\"carry_contract\":1,\"carried\":[],\"sound_aliases\":3}");
+                var assets = With("{\"carry_contract\":1,\"carried\":[{\"type\":\"xmodel\",\"name\":\"m\",\"zone\":\"z\"}],\"sound_aliases\":2}");
+                var broken = With("{ not json");
                 Check($"linker: an empty .stockcarry.json is no dependency; carried assets or sound_aliases make one ({empty?.What ?? "none"}, {soundsOnly?.What}, {assets?.What})",
                     empty is null && soundsOnly is { SoundOnly: true, SoundAliases: 3, Capability: DragonLinker.StockSoundCapability } && soundsOnly.Marker == marker
                     && assets is { SoundOnly: false, Assets: 1, Capability: DragonLinker.StockCarryCapability });
-                Check($"linker: an unreadable marker still counts (as stock assets); an older Dragon's .stocksound.json alone still counts ({older?.What}, {bothOld?.What})",
-                    broken is { SoundOnly: false, Assets: -1 } && older is { SoundOnly: true, SoundAliases: 2 } && older.What == "2 stock sounds"
-                    && bothOld is { SoundOnly: true } && bothOld.Marker.EndsWith(".stocksound.json", StringComparison.Ordinal));
+                Check("linker: an unreadable marker still counts (as stock assets)", broken is { SoundOnly: false, Assets: -1 });
 
                 var soundReason = DragonLinker.CarryBlockedReason(true, false, true, true, soundsOnly);
                 var assetReason = DragonLinker.CarryBlockedReason(true, false, true, true, assets);
@@ -253,7 +247,7 @@ internal static class LinkerScenario
                     && !DragonLinker.CarryFailureMessage(DragonLinker.ExitStockCarry, soundsOnly).Contains("Create a local copy", StringComparison.Ordinal));
 
                 // The question and the link-anyway line say the same for a sound-only map.
-                With("{\"carry_contract\":1,\"carried\":[],\"sound_aliases\":3}", null);
+                With("{\"carry_contract\":1,\"carried\":[],\"sound_aliases\":3}");
                 settings.UseDragon = false;
                 string? askedSound = null;
                 vm.ConfirmAsync = (_, message, _) =>
@@ -271,7 +265,6 @@ internal static class LinkerScenario
                 vm.ConfirmAsync = realConfirm;
                 settings.UseDragon = true;
                 File.Delete(marker);
-                File.Delete(DragonLinker.SoundMarkerPath(folder, zone));
             }
 
             // 10. Dragon installed while Blackbird runs: the menu re-reads it (on window focus and before each build).
