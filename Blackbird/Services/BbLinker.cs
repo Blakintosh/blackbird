@@ -158,6 +158,13 @@ public static class BbLinker
     /// <summary>The note on the stock linker's line for Prepare for publish, which always links with it.</summary>
     public const string PublishNote = "Prepare for publish always links with it.";
 
+    /// <summary>
+    /// The line before a carry map's link when the user chose to link it with the stock linker anyway: a warning, so the
+    /// build counts it and the log says what is missing.
+    /// </summary>
+    public static string StockAnywayHeader(string linkerExe) =>
+        $"^3[launcher] Linking with the stock linker ({Path.GetFileName(linkerExe)}) anyway: the stock assets Dragon carried for this map are left out.";
+
     /// <summary>The plain line a build log shows before the stock linker's first link of a build.</summary>
     public static string StockHeader(string linkerExe, string? note) =>
         $"[launcher] Linking with the stock linker ({Path.GetFileName(linkerExe)}).{(note is null ? "" : " " + note)}";

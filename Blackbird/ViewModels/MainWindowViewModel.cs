@@ -2854,9 +2854,51 @@ public partial class MainWindowViewModel : ObservableObject
             LightQualityIndex = i;
     }
 
+    /// <summary>
+    /// Asks before acting, through the shared message dialog: (title, message, confirm verb) → whether the user chose
+    /// the verb. Set by the main window; without it a build that needs an answer is refused with its reason, as before.
+    /// </summary>
+    public Func<string, string, string, Task<bool>>? ConfirmAsync { get; set; }
+
+    public const string StockAnywayTitle = "Link without Dragon?";
+    public const string StockAnywayMessage =
+        "This map uses stock assets carried by Dragon. Install Dragon or switch it on; linking with the stock linker will leave those assets out.";
+    public const string StockAnywayAction = "Link with stock linker anyway";
+
+    /// <summary>
+    /// The plan for a normal build. A map that depends on Dragon's stock carry while Dragon is missing or switched
+    /// off is never handed to the stock linker silently: the user is asked, and may link with it anyway. Null when
+    /// they decline.
+    /// </summary>
+    private async Task<List<BuildCommand>?> PlanBuildAsync(bool runAfterBuild)
+    {
+        RefreshBbLinker();
+        var commands = BuildCommandList(forceRun: runAfterBuild);
+        if (ConfirmAsync is not { } confirm || !commands.Any(c => c.CarryBlockedReason is not null))
+            return commands;
+        if (!await confirm(StockAnywayTitle, StockAnywayMessage, StockAnywayAction))
+        {
+            StatusText = "Build not started. This map needs Dragon for its stock assets.";
+            return null;
+        }
+        _linkStockAnyway = true;
+        try
+        {
+            return BuildCommandList(forceRun: runAfterBuild);
+        }
+        finally
+        {
+            _linkStockAnyway = false;
+        }
+    }
+
+    /// <summary>While set, a carry map's link is planned for the stock linker (the user chose "Link with stock linker anyway").</summary>
+    private bool _linkStockAnyway;
+
     private async Task RunBuildAsync(bool runAfterBuild, bool ignoreErrors)
     {
-        var commands = BuildCommandList(forceRun: runAfterBuild);
+        if (await PlanBuildAsync(runAfterBuild) is not { } commands)
+            return;
 
         // The game launch rides at the end of the list; it starts on its own once the build is done.
         BuildCommand? runGameCommand = null;
@@ -3325,9 +3367,23 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        if (dependsOnCarry && _linkStockAnyway)
+        {
+            // The user chose "Link with stock linker anyway": one plain stock link, its log line a warning that says what's left out.
+            List<string> anywayArgs = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
+            commands.Add(new BuildCommand(linker, anywayArgs, description)
+            {
+                Header = BbLinker.StockAnywayHeader(linker),
+                PatchUmbraWait = isMap,
+                OnLinked = Record(fellBack: false),
+            });
+            return;
+        }
+
         if (dependsOnCarry)
         {
-            // Setting off or bb-linker missing: the stock linker would drop the carried assets, so the build says so instead.
+            // Setting off or bb-linker missing: the stock linker would drop the carried assets, so the build asks first
+            // (PlanBuildAsync); without an answer it stops with the reason.
             List<string> blockedArgs = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
             commands.Add(new BuildCommand(linker, blockedArgs, description)
             {

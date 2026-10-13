@@ -2881,6 +2881,14 @@ public partial class MainWindow : Window
         }
     }
 
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (ViewModel is { } vm)
+            vm.ConfirmAsync = (title, message, confirmText) =>
+                MessageDialog.ConfirmAsync(this, title, message, confirmText, destructive: true);
+    }
+
     private System.Threading.Tasks.Task ShowMessageAsync(string title, string message) =>
         MessageDialog.ShowAsync(this, title, message);
 
