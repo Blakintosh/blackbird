@@ -248,6 +248,9 @@ internal static class StockScenario
         var marker = BbLinker.CarryMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
         Directory.CreateDirectory(Path.GetDirectoryName(marker)!);
         File.WriteAllText(marker, "{\"carry_contract\":1,\"zone\":\"zm_castle_redux\",\"carried\":[{\"type\":\"xmodel\",\"name\":\"p7_zm_zod_master_switch\",\"zone\":\"zm_zod\"}]}");
+        // The plan as the build service sees it when nobody answers the link-anyway question (LinkerScenario covers the question).
+        var confirm = vm.ConfirmAsync;
+        vm.ConfirmAsync = null;
 
         List<BuildCommand> Planned()
         {
@@ -281,6 +284,7 @@ internal static class StockScenario
         Check("plan: without a marker, nothing is blocked and the link keeps its fallback",
             plain.All(c => c.CarryBlockedReason is null && c.CarryMarker is null) && plain.Any(c => c.Fallback is not null));
         File.WriteAllText(marker, "{\"carry_contract\":1,\"zone\":\"zm_castle_redux\",\"carried\":[]}");
+        vm.ConfirmAsync = confirm;
     }
 
     private static void CarryFailureShot(MainWindow main, MainWindowViewModel vm, string realLog)

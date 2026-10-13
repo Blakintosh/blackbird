@@ -47,6 +47,14 @@ internal static class LinkerScenario
             Check("linker: the Dragon line is coloured but counts as neither an error nor a warning",
                 !BuildLogCodes.IsError(head) && !BuildLogCodes.IsWarning(head));
 
+            // 1b. A Dragon that reports its commit and build date (1.0.0) is named by them, not by the exe's date.
+            var v1 = Path.Combine(Path.GetDirectoryName(dragon)!, "bb-linker-1.0.0.cmd");
+            File.WriteAllText(v1, "@echo off\r\nif \"%~1\"==\"-capabilities\" goto caps\r\necho ^^7Linking zone zm_castle_redux\r\nexit /b 0\r\n:caps\r\n"
+                + "echo {\"id\":\"dragon\",\"version\":\"1.0.0\",\"commit\":\"0123456789abcdef0123\",\"build_date\":\"2026-10-13\",\"capabilities\":[\"stock-carry\",\"stock-sound\"],\"carry_contract\":1}\r\nexit /b 0\r\n");
+            var release = Real(Dragon(v1, 0, stockLinker));
+            Check($"linker: a Dragon reporting commit and build_date is named by them ('{FirstLine(release, "Dragon")}')",
+                release.Contains("^4Dragon 1.0.0 (bb-linker, 012345678, built 2026-10-13)\n", StringComparison.Ordinal));
+
             // 2. A developer's build named by BLACKBIRD_BB_LINKER says so, with its path.
             Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, dragon);
             var dev = Real(Dragon(dragon, 0, stockLinker));
@@ -122,7 +130,10 @@ internal static class LinkerScenario
                     soundStep?.CarryMarker == soundMarker && soundStep.Fallback is not null
                     && BbLinker.AfterStep(Unsupported, soundStep.CarryMarker is not null) == BbLinker.Next.FailStockCarry);
                 settings.UseBbLinker = false;
+                var hook = vm.ConfirmAsync;
+                vm.ConfirmAsync = null; // the plan as it stands without an answer; section 9 covers the question
                 var soundOff = Planned(vm).Where(c => c.CarryMarker is not null).ToList();
+                vm.ConfirmAsync = hook;
                 Check("linker: with the switch off, a stock-sound project is blocked instead of linked by the stock linker",
                     soundOff.Count == 1 && soundOff[0].CarryBlockedReason?.Contains("Link with bb-linker is off", StringComparison.Ordinal) == true);
                 settings.UseBbLinker = true;
@@ -143,6 +154,74 @@ internal static class LinkerScenario
             {
                 File.Delete(soundMarker);
             }
+
+            // 9. A carry map with Dragon switched off is never a dead end: the build asks, and can link with the stock linker anyway.
+            File.WriteAllText(marker, "{\"carry_contract\":1,\"zone\":\"zm_castle_redux\",\"carried\":[]}");
+            var realConfirm = vm.ConfirmAsync;
+            try
+            {
+                Check("linker: the main window gives the view model the shared confirm dialog", realConfirm is not null);
+                settings.UseBbLinker = false;
+                var asked = new List<string>();
+                vm.ConfirmAsync = (title, message, action) =>
+                {
+                    asked.Add($"{title}|{message}|{action}");
+                    return Task.FromResult(false);
+                };
+                var runs = Build.Runs;
+                vm.BuildOnlyOnceCommand.Execute(null);
+                Pump(200);
+                Check($"linker: declining leaves the build unstarted and says why ('{vm.StatusLine}')",
+                    Build.Runs == runs && asked.Count == 1
+                    && asked[0] == $"{MainWindowViewModel.StockAnywayTitle}|{MainWindowViewModel.StockAnywayMessage}|{MainWindowViewModel.StockAnywayAction}"
+                    && vm.StatusLine.StartsWith("Build not started.", StringComparison.Ordinal));
+
+                vm.ConfirmAsync = (_, _, _) => Task.FromResult(true);
+                var anyway = Planned(vm);
+                var anywayLinks = anyway.Where(c => c.Header?.Contains("anyway", StringComparison.Ordinal) == true).ToList();
+                Check($"linker: 'Link with stock linker anyway' plans one stock link, unblocked, with a warning line ('{anywayLinks.FirstOrDefault()?.Header}')",
+                    anywayLinks.Count == 1 && anywayLinks[0].CarryBlockedReason is null && anywayLinks[0].CarryMarker is null
+                    && anywayLinks[0].Fallback is null && !anywayLinks[0].ReportsProgress
+                    && BuildLogCodes.IsWarning(anywayLinks[0].Header!) && !anyway.Any(c => c.CarryBlockedReason is not null));
+                var anywayLog = Real(Stock(stockLinker, anywayLinks.FirstOrDefault()?.Header));
+                Replay(main, vm, "main-log-stock-anyway", anywayLog,
+                    c => c.OnLinked is not null ? new LinkOutcome("stock", false, 0) : null, "linked with the stock linker");
+                Check($"linker: the link-anyway build counts its warning ({vm.WarningCount})", vm.WarningCount >= 1);
+
+                // The real question, through the shared message dialog; Esc declines.
+                vm.ConfirmAsync = realConfirm;
+                runs = Build.Runs;
+                vm.BuildOnlyOnceCommand.Execute(null);
+                var dialog = Owned<Avalonia.Controls.Window>(main);
+                var texts = Find<Avalonia.Controls.TextBlock>(dialog).Select(t => t.Text ?? "").ToList();
+                var buttons = Find<Avalonia.Controls.Button>(dialog).Select(b => b.Content as string ?? (b.Content as Avalonia.Controls.TextBlock)?.Text ?? "").ToList();
+                Check($"linker: the dialog says what's left out and offers the stock linker by name ({string.Join(" / ", buttons)})",
+                    texts.Contains(MainWindowViewModel.StockAnywayTitle) && texts.Any(t => t.Contains("leave those assets out", StringComparison.Ordinal))
+                    && buttons.Contains(MainWindowViewModel.StockAnywayAction) && buttons.Contains("Cancel"));
+                Shot(dialog, "dialog-stock-anyway");
+                Key(dialog, Avalonia.Input.Key.Escape);
+                Check("linker: Esc on the dialog declines, and nothing builds", WaitFor(() => !dialog.IsVisible) && Pump0() && Build.Runs == runs);
+            }
+            finally
+            {
+                vm.ConfirmAsync = realConfirm;
+                settings.UseBbLinker = true;
+                File.Delete(marker);
+            }
+
+            // 10. Dragon installed while Blackbird runs: the menu re-reads it (on window focus and before each build).
+            Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, missing);
+            vm.RefreshBbLinker();
+            var wasInstalled = vm.IsBbLinkerInstalled;
+            var raised = new List<string>();
+            void OnChanged(object? _, System.ComponentModel.PropertyChangedEventArgs e) => raised.Add(e.PropertyName ?? "");
+            vm.PropertyChanged += OnChanged;
+            Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, dragon);
+            vm.RefreshBbLinker();
+            vm.PropertyChanged -= OnChanged;
+            Check($"linker: re-detecting Dragon enables the menu item without a restart ({string.Join(", ", raised)})",
+                !wasInstalled && vm.IsBbLinkerInstalled && vm.IsLinkingWithBbLinker
+                && raised.Contains(nameof(MainWindowViewModel.IsBbLinkerInstalled)) && raised.Contains(nameof(MainWindowViewModel.IsLinkingWithBbLinker)));
 
             // The shots: each log through the main window, with the status line naming the linker.
             Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, dragon);
@@ -222,6 +301,12 @@ internal static class LinkerScenario
         var log = new Collect();
         Task.Run(() => new BuildService().RunBuildAsync([.. steps], false, log, CancellationToken.None)).GetAwaiter().GetResult();
         return log.ToString().ReplaceLineEndings("\n");
+    }
+
+    private static bool Pump0()
+    {
+        Pump(100);
+        return true;
     }
 
     private static string FirstLine(string log, string containing) =>
