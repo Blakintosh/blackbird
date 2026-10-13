@@ -62,6 +62,11 @@ internal static class UpdateScenario
         var checkNow = main.FindControl<MenuItem>("CheckNowItem")!;
         using var server = new ReleaseServer();
 
+        // Versions compare as semver, not as text: 1.0.0 is newer than 0.10.0 and 0.9.2, and 0.10.0 is newer than 0.9.2.
+        Check($"updates: 1.0.0 is newer than 0.10.0 and 0.9.2, 0.10.0 newer than 0.9.2, 1.0.0-beta.1 older than 1.0.0 ({Updater.CompareVersions("1.0.0", "0.10.0")}, {Updater.CompareVersions("1.0.0", "0.9.2")}, {Updater.CompareVersions("0.10.0", "0.9.2")}, {Updater.CompareVersions("v1.0.0-beta.1", "1.0.0")})",
+            Updater.CompareVersions("1.0.0", "0.10.0") > 0 && Updater.CompareVersions("1.0.0", "0.9.2") > 0 && Updater.CompareVersions("0.10.0", "0.9.2") > 0
+            && Updater.CompareVersions("0.9.2", "1.0.0") < 0 && Updater.CompareVersions("v1.0.0-beta.1", "1.0.0") < 0 && Updater.CompareVersions("1.0.0", "1.0.0") == 0);
+
         // Before any check: the title bar has nothing, and Help > Updates says which version this is.
         Check($"updates: nothing in the title bar before a check ({button.IsVisible})", !button.IsVisible);
         OpenUpdatesMenu(main);
