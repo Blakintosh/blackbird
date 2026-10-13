@@ -853,6 +853,10 @@ public sealed partial class ComponentUpdater : ObservableObject
         var spec = item.Spec;
         var exe = Path.GetFullPath(Path.Combine(root, spec.ExePath));
         var placed = new List<(string Target, string New, bool HadOld, bool Moved)>();
+        // The components delete their own <file>.old when they start, and the verify step starts the new one: a copy
+        // of every file about to be replaced is kept apart from the .old, so a failed verify can still put it back.
+        var backups = Path.Combine(_options.DownloadFolder, spec.Id, "backup");
+        string BackupOf(string target) => Path.Combine(backups, Path.GetRelativePath(root, target));
         try
         {
             using var zip = ZipFile.OpenRead(item.BundlePath!);
@@ -884,7 +888,13 @@ public sealed partial class ComponentUpdater : ObservableObject
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 var staged = target + ".new";
                 entry.ExtractToFile(staged, overwrite: true);
-                placed.Add((target, staged, File.Exists(target), false));
+                var existed = File.Exists(target);
+                if (existed)
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(BackupOf(target))!);
+                    File.Copy(target, BackupOf(target), overwrite: true);
+                }
+                placed.Add((target, staged, existed, false));
             }
 
             for (var i = 0; i < placed.Count; i++)
@@ -902,7 +912,8 @@ public sealed partial class ComponentUpdater : ObservableObject
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            var rolledBack = RollBack(placed);
+            var rolledBack = RollBack(placed, BackupOf);
+            TryDeleteFolder(backups);
             Log($"Install of {item.Title} failed: {ex.GetType().Name}: {ex.Message}{(rolledBack ? "" : " (some files couldn't be put back)")}");
             if (!rolledBack)
                 return $"Some files couldn't be put back. Reinstall {spec.DisplayName} from its release page.";
@@ -916,7 +927,9 @@ public sealed partial class ComponentUpdater : ObservableObject
 
         if (VerifyAsync(item, exe, root, game).GetAwaiter().GetResult() is { } problem)
         {
-            var rolledBack = RollBack(placed);
+            var rolledBack = RollBack(placed, BackupOf);
+            if (rolledBack)
+                TryDeleteFolder(backups);
             Log($"{item.Title} didn't verify after install: {problem}{(rolledBack ? "; the old files were put back" : "; some files couldn't be put back")}");
             return rolledBack
                 ? $"The new {spec.DisplayName} didn't run ({problem}). The old version was put back."
@@ -925,6 +938,7 @@ public sealed partial class ComponentUpdater : ObservableObject
 
         foreach (var (target, _, hadOld, _) in placed.Where(p => p.HadOld))
             TryDelete(target + ".old");
+        TryDeleteFolder(backups);
         return null;
     }
 
@@ -959,7 +973,7 @@ public sealed partial class ComponentUpdater : ObservableObject
         }
     }
 
-    private static bool RollBack(List<(string Target, string New, bool HadOld, bool Moved)> placed)
+    private static bool RollBack(List<(string Target, string New, bool HadOld, bool Moved)> placed, Func<string, string> backupOf)
     {
         var ok = true;
         foreach (var (target, staged, hadOld, moved) in Enumerable.Reverse(placed))
@@ -968,8 +982,15 @@ public sealed partial class ComponentUpdater : ObservableObject
             {
                 if (moved)
                     File.Delete(target);
-                if (hadOld && !File.Exists(target) && File.Exists(target + ".old"))
-                    File.Move(target + ".old", target);
+                if (hadOld && !File.Exists(target))
+                {
+                    if (File.Exists(target + ".old"))
+                        File.Move(target + ".old", target);
+                    else if (File.Exists(backupOf(target)))
+                        File.Copy(backupOf(target), target);
+                    else
+                        ok = false;
+                }
                 TryDelete(staged);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -1073,6 +1094,20 @@ public sealed partial class ComponentUpdater : ObservableObject
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Left for the next start.
+        }
+    }
+
+    /// <summary>Removes a folder this updater made. A link is left alone.</summary>
+    private static void TryDeleteFolder(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path) && !new DirectoryInfo(path).Attributes.HasFlag(FileAttributes.ReparsePoint))
+                Directory.Delete(path, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Left for the system to clear with the temp folder.
         }
     }
 

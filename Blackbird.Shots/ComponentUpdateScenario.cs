@@ -332,6 +332,9 @@ internal static class ComponentUpdateScenario
     private static Task<CliResult> FakeRun(string exe, IReadOnlyList<string> args, IReadOnlyDictionary<string, string> environment)
     {
         Runs.Add($"{Path.GetFileName(exe)} {string.Join(' ', args)}");
+        // Like the real components, which delete their own <file>.old at the start of every run: an install must not rely on it for its rollback.
+        if (File.Exists(exe + ".old"))
+            File.Delete(exe + ".old");
         var text = File.Exists(exe) ? File.ReadAllText(exe) : "";
         if (text.StartsWith("BAD", StringComparison.Ordinal) || text.Length == 0)
             return Task.FromResult(new CliResult(false, -1, ""));
