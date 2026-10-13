@@ -120,7 +120,7 @@ internal static class LinkerScenario
             var echoed = Real(new BuildCommand(envEcho, ["-modsource", "zm_castle_redux"], "Link") { ReportsProgress = true, Environment = bbStep?.Environment });
             Check("linker: the Dragon process sees that install", echoed.Contains($"install={expectInstall}\n", StringComparison.Ordinal));
 
-            // 8. A project whose only stock dependency is sounds (.stocksound.json) is treated exactly like a carry project.
+            // 8. An older Dragon marked a map that uses only stock sounds with .stocksound.json alone; it still counts.
             var soundMarker = BbLinker.SoundMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
             File.WriteAllText(soundMarker, "{\"stock_sound_contract\":1,\"entries\":[]}");
             try
@@ -141,14 +141,13 @@ internal static class LinkerScenario
                 var noSound = Real(new BuildCommand(dragon, ["-modsource", "zm_castle_redux"], "Link (bb-linker)")
                 {
                     ReportsProgress = true, CarryMarker = soundMarker,
+                    StockDependency = BbLinker.StockDependencyOf(FakeInstall.CastleFolder, "zm_castle_redux"),
                     Environment = new Dictionary<string, string> { ["FAKE_BBL_EXIT"] = "0" },
                     Fallback = new BuildCommand(stockLinker, ["-modsource", "zm_castle_redux"], "Link"),
                 });
                 Check("linker: a Dragon without stock-sound refuses a stock-sound project before linking, and the stock linker never runs",
-                    noSound.Contains("can't carry stock assets", StringComparison.Ordinal) && !noSound.Contains("STOCK LINKER RAN", StringComparison.Ordinal));
-                var carryMarker = BbLinker.CarryMarkerPath(FakeInstall.CastleFolder, "zm_castle_redux");
-                Check("linker: the capability a project needs follows its marker (stock-sound, stock-carry)",
-                    BbLinker.CapabilityFor(soundMarker) == BbLinker.StockSoundCapability && BbLinker.CapabilityFor(carryMarker) == BbLinker.StockCarryCapability);
+                    noSound.Contains("can't carry stock sounds", StringComparison.Ordinal) && noSound.Contains(BbLinker.SoundHint, StringComparison.Ordinal)
+                    && !noSound.Contains("STOCK LINKER RAN", StringComparison.Ordinal));
             }
             finally
             {
@@ -156,7 +155,7 @@ internal static class LinkerScenario
             }
 
             // 9. A carry map with Dragon switched off is never a dead end: the build asks, and can link with the stock linker anyway.
-            File.WriteAllText(marker, "{\"carry_contract\":1,\"zone\":\"zm_castle_redux\",\"carried\":[]}");
+            File.WriteAllText(marker, "{\"carry_contract\":1,\"zone\":\"zm_castle_redux\",\"carried\":[{\"type\":\"xmodel\",\"name\":\"p7_zm_zod_master_switch\",\"zone\":\"zm_zod\"}],\"sound_aliases\":0}");
             var realConfirm = vm.ConfirmAsync;
             try
             {
@@ -173,7 +172,7 @@ internal static class LinkerScenario
                 Pump(200);
                 Check($"linker: declining leaves the build unstarted and says why ('{vm.StatusLine}')",
                     Build.Runs == runs && asked.Count == 1
-                    && asked[0] == $"{MainWindowViewModel.StockAnywayTitle}|{MainWindowViewModel.StockAnywayMessage}|{MainWindowViewModel.StockAnywayAction}"
+                    && asked[0] == $"{MainWindowViewModel.StockAnywayTitle}|This map uses stock assets carried by Dragon. Install Dragon or switch it on; linking with the stock linker will leave those assets out.|{MainWindowViewModel.StockAnywayAction}"
                     && vm.StatusLine.StartsWith("Build not started.", StringComparison.Ordinal));
 
                 vm.ConfirmAsync = (_, _, _) => Task.FromResult(true);
@@ -207,6 +206,62 @@ internal static class LinkerScenario
                 vm.ConfirmAsync = realConfirm;
                 settings.UseBbLinker = true;
                 File.Delete(marker);
+            }
+
+            // 11. Dragon 1.0.0's single marker: .stockcarry.json counts when it lists carried assets or sound_aliases > 0.
+            var folder = FakeInstall.CastleFolder;
+            const string zone = "zm_castle_redux";
+            BbLinker.StockDependency? With(string? carry, string? sound)
+            {
+                if (carry is null) File.Delete(marker); else File.WriteAllText(marker, carry);
+                var soundFile = BbLinker.SoundMarkerPath(folder, zone);
+                if (sound is null) File.Delete(soundFile); else File.WriteAllText(soundFile, sound);
+                return BbLinker.StockDependencyOf(folder, zone);
+            }
+            try
+            {
+                var empty = With("{\"carry_contract\":1,\"carried\":[],\"sound_aliases\":0}", null);
+                var soundsOnly = With("{\"carry_contract\":1,\"carried\":[],\"sound_aliases\":3}", null);
+                var assets = With("{\"carry_contract\":1,\"carried\":[{\"type\":\"xmodel\",\"name\":\"m\",\"zone\":\"z\"}],\"sound_aliases\":2}", null);
+                var broken = With("{ not json", null);
+                var older = With(null, "{\"stock_sound_contract\":1,\"aliases\":[\"a\",\"b\"],\"entries\":[]}");
+                var bothOld = With("{\"carry_contract\":1,\"carried\":[]}", "{\"stock_sound_contract\":1,\"entries\":[]}");
+                Check($"linker: an empty .stockcarry.json is no dependency; carried assets or sound_aliases make one ({empty?.What ?? "none"}, {soundsOnly?.What}, {assets?.What})",
+                    empty is null && soundsOnly is { SoundOnly: true, SoundAliases: 3, Capability: BbLinker.StockSoundCapability } && soundsOnly.Marker == marker
+                    && assets is { SoundOnly: false, Assets: 1, Capability: BbLinker.StockCarryCapability });
+                Check($"linker: an unreadable marker still counts (as stock assets); an older Dragon's .stocksound.json alone still counts ({older?.What}, {bothOld?.What})",
+                    broken is { SoundOnly: false, Assets: -1 } && older is { SoundOnly: true, SoundAliases: 2 } && older.What == "2 stock sounds"
+                    && bothOld is { SoundOnly: true } && bothOld.Marker.EndsWith(".stocksound.json", StringComparison.Ordinal));
+
+                var soundReason = BbLinker.CarryBlockedReason(true, false, true, true, soundsOnly);
+                var assetReason = BbLinker.CarryBlockedReason(true, false, true, true, assets);
+                Check($"linker: a sound-only map's refusal names its sounds and Apex's Stock sounds view, not 'Create a local copy' ('{soundReason}')",
+                    soundReason!.Contains("3 stock sounds", StringComparison.Ordinal) && soundReason.EndsWith(BbLinker.SoundHint, StringComparison.Ordinal)
+                    && !soundReason.Contains("Create a local copy", StringComparison.Ordinal)
+                    && assetReason!.EndsWith(BbLinker.CarryHint, StringComparison.Ordinal)
+                    && BbLinker.CarryFailureMessage(BbLinker.ExitStockCarry, soundsOnly).Contains("stock sound", StringComparison.Ordinal)
+                    && !BbLinker.CarryFailureMessage(BbLinker.ExitStockCarry, soundsOnly).Contains("Create a local copy", StringComparison.Ordinal));
+
+                // The question and the link-anyway line say the same for a sound-only map.
+                With("{\"carry_contract\":1,\"carried\":[],\"sound_aliases\":3}", null);
+                settings.UseBbLinker = false;
+                string? askedSound = null;
+                vm.ConfirmAsync = (_, message, _) =>
+                {
+                    askedSound = message;
+                    return Task.FromResult(true);
+                };
+                var soundAnyway = Planned(vm).FirstOrDefault(c => c.Header?.Contains("anyway", StringComparison.Ordinal) == true);
+                Check($"linker: for a sound-only map the question and the warning name its sounds ('{askedSound}' / '{soundAnyway?.Header}')",
+                    askedSound == "This map uses 3 stock sounds carried by Dragon. Install Dragon or switch it on; linking with the stock linker will leave those sounds out. Apex's Stock sounds view can make local copies of them."
+                    && soundAnyway?.Header?.EndsWith("anyway: the 3 stock sounds Dragon carried for this map are left out.", StringComparison.Ordinal) == true);
+            }
+            finally
+            {
+                vm.ConfirmAsync = realConfirm;
+                settings.UseBbLinker = true;
+                File.Delete(marker);
+                File.Delete(BbLinker.SoundMarkerPath(folder, zone));
             }
 
             // 10. Dragon installed while Blackbird runs: the menu re-reads it (on window focus and before each build).
