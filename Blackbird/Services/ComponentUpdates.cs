@@ -216,7 +216,7 @@ public sealed partial class ComponentUpdater : ObservableObject
     public string ChipText => Phase switch
     {
         ComponentPhase.Downloading => "Downloading…",
-        ComponentPhase.Ready => Items.Count == 1 ? $"{Items[0].Name} update" : $"{Items.Count} component updates",
+        ComponentPhase.Ready => Shown.Count == 1 ? $"{Shown[0].Name} update" : $"{Shown.Count} component updates",
         ComponentPhase.Waiting => "Update waiting",
         ComponentPhase.Installing => "Installing…",
         ComponentPhase.Installed => "Components updated",
@@ -225,15 +225,18 @@ public sealed partial class ComponentUpdater : ObservableObject
     };
 
     /// <summary>"Dragon 1.0.1 and Stock Library 1.0.1".</summary>
-    public string Names => Join(Items.Select(i => i.Title));
+    public string Names => Join(Shown.Select(i => i.Title));
+
+    /// <summary>What the control talks about: what was just installed, or else what still waits.</summary>
+    private List<ComponentUpdate> Shown => Phase == ComponentPhase.Installed ? Items.Where(i => i.IsInstalled).ToList() : Items.Where(i => !i.IsInstalled).ToList();
 
     public string Title => Phase switch
     {
         ComponentPhase.Downloading => $"Downloading {Names}…",
-        ComponentPhase.Ready => $"{Names} {(Items.Count == 1 ? "is" : "are")} available",
+        ComponentPhase.Ready => $"{Names} {(Shown.Count == 1 ? "is" : "are")} available",
         ComponentPhase.Waiting => $"{Names} will install when it can",
         ComponentPhase.Installing => $"Installing {Names}…",
-        ComponentPhase.Installed => $"{Names} {(Items.Count(i => i.IsInstalled) == 1 && Items.Count == 1 ? "is" : "are")} installed",
+        ComponentPhase.Installed => $"{Names} {(Shown.Count == 1 ? "is" : "are")} installed",
         ComponentPhase.Failed => _failTitle,
         _ => "",
     };
@@ -241,7 +244,7 @@ public sealed partial class ComponentUpdater : ObservableObject
     public string Detail => Phase switch
     {
         ComponentPhase.Downloading => "",
-        ComponentPhase.Ready => string.IsNullOrEmpty(_blocker) ? $"You have {Join(Items.Select(i => $"{i.Name} {i.Current ?? "(unknown)"}"))}." : _blocker,
+        ComponentPhase.Ready => string.IsNullOrEmpty(_blocker) ? $"You have {Join(Shown.Select(i => $"{i.Name} {i.Current ?? "(unknown)"}"))}." : _blocker,
         ComponentPhase.Waiting => _blocker,
         ComponentPhase.Installing => "",
         ComponentPhase.Installed => "Blackbird uses the new version from the next build.",
@@ -545,7 +548,9 @@ public sealed partial class ComponentUpdater : ObservableObject
         if (string.IsNullOrWhiteSpace(body))
             return null;
         var lines = body.Replace("\r\n", "\n").Split('\n')
-            .Select(l => Regex.Replace(l.Trim(), @"\[([^\]]*)\]\([^)]*\)", "$1"))
+            .Select(l => l.Trim())
+            .Where(l => !l.StartsWith('#')) // the headline repeats the version the notes are filed under
+            .Select(l => Regex.Replace(l, @"\[([^\]]*)\]\([^)]*\)", "$1"))
             .Select(l => l.Replace("**", "").Replace("__", "").Replace("`", ""))
             .Select(l => Regex.Replace(l, @"^(#+|[-*+]|\d+\.)\s+", m => m.Value.TrimStart().StartsWith('#') ? "" : "• "))
             .Where(l => l.Length > 0)
@@ -716,8 +721,9 @@ public sealed partial class ComponentUpdater : ObservableObject
         if (blocker is not null)
         {
             _blocker = blocker;
-            SetPhase(ComponentPhase.Waiting);
+            StatusText = blocker;
             _pendingId = id;
+            SetPhase(ComponentPhase.Waiting);
             _ = WatchAsync();
             return;
         }
@@ -761,7 +767,7 @@ public sealed partial class ComponentUpdater : ObservableObject
                 {
                     var only = _pendingId;
                     await ApplyAsync(Items.Where(i => i.BundlePath is not null && !i.IsInstalled && (only is null || i.Id == only)).ToList());
-                    break;
+                    continue;
                 }
 
                 await Task.Delay(blocker is null && Phase == ComponentPhase.Ready ? _options.PollInterval * 3 : _options.PollInterval);
@@ -776,6 +782,7 @@ public sealed partial class ComponentUpdater : ObservableObject
     private async Task ApplyAsync(List<ComponentUpdate> targets)
     {
         _blocker = "";
+        _pendingId = null;
         SetPhase(ComponentPhase.Installing);
         var root = Root();
         var game = _options.GamePath();
@@ -799,9 +806,28 @@ public sealed partial class ComponentUpdater : ObservableObject
             }
         }
 
-        if (targets.Any(t => t.IsInstalled))
+        var done = targets.Where(t => t.IsInstalled).ToList();
+        if (done.Count > 0)
+        {
+            StatusText = $"{Join(done.Select(d => d.Title))} {(done.Count == 1 ? "is" : "are")} installed.";
             Installed?.Invoke(this, EventArgs.Empty);
-        SetPhase(failures > 0 ? ComponentPhase.Failed : ComponentPhase.Installed);
+        }
+
+        if (failures > 0)
+        {
+            SetPhase(ComponentPhase.Failed);
+        }
+        else if (Items.Any(i => !i.IsInstalled))
+        {
+            // One was installed from Tools > Components; the other still waits for the user.
+            Items = Items.Where(i => !i.IsInstalled).ToList();
+            SetPhase(ComponentPhase.Ready);
+            _ = WatchAsync();
+        }
+        else
+        {
+            SetPhase(ComponentPhase.Installed);
+        }
     }
 
     /// <summary>Swaps the component in and checks the new exe runs; on any failure every file is put back. Null, or why in a sentence.</summary>

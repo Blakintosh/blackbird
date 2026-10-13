@@ -78,7 +78,7 @@
                                                     MinWidth="104"
                                                     HorizontalAlignment="Right"
                                                     Content="Update"
-                                                    IsVisible="{Binding Update.CanInstallNow}"
+                                                    IsVisible="{Binding CanInstallUpdate}"
                                                     Command="{Binding $parent[ItemsControl].((vm:ComponentsDialogViewModel)DataContext).InstallUpdateCommand}"
                                                     CommandParameter="{Binding}"/>
                                             <Button Classes="link"

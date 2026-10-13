@@ -39,6 +39,28 @@ public sealed partial class ComponentRow : ObservableObject
 
     public bool HasUpdate => Update is not null;
 
+    /// <summary>The row's Update button: the update is downloaded and nothing is working on it.</summary>
+    public bool CanInstallUpdate => Update?.CanInstallNow == true;
+
+    partial void OnUpdateChanging(ComponentUpdate? value)
+    {
+        if (Update is { } old)
+            old.PropertyChanged -= OnUpdateItemChanged;
+    }
+
+    partial void OnUpdateChanged(ComponentUpdate? value)
+    {
+        if (value is not null)
+            value.PropertyChanged += OnUpdateItemChanged;
+        OnPropertyChanged(nameof(CanInstallUpdate));
+    }
+
+    private void OnUpdateItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ComponentUpdate.State))
+            OnPropertyChanged(nameof(CanInstallUpdate));
+    }
+
     public bool IsReady => State == ComponentState.Ready;
     public bool NeedsAttention => State == ComponentState.Attention;
     public bool IsMissing => State == ComponentState.Missing;

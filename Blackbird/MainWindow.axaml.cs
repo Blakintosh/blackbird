@@ -67,6 +67,18 @@ public partial class MainWindow : Window
         // Dragon may have been installed (or removed) while Blackbird was in the background.
         Activated += (_, _) => ViewModel?.RefreshBbLinker();
 
+        // Later and Close in the component flyout take the control away; the flyout goes with it.
+        DataContextChanged += (_, _) =>
+        {
+            if (ViewModel is { } vm)
+                vm.ComponentUpdates.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(Services.ComponentUpdater.IsShown) && !vm.ComponentUpdates.IsShown
+                        && this.FindControl<Button>("ComponentUpdateButton")?.Flyout is { IsOpen: true } open)
+                        open.Hide();
+                };
+        };
+
         if (this.FindControl<Button>("UpdateButton") is { } updateButton)
             updateButton.PropertyChanged += (_, e) =>
             {
