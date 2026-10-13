@@ -64,10 +64,10 @@
                               ToolTip.Tip="{Binding Export2RustToolTip}" ToolTip.ShowOnDisabled="True"/>
                     <MenuItem Header="_GSCode Library" Command="{Binding OpenGsCodeLibraryCommand}"/>
                     <MenuItem Header="BO3 _Source Explorer" Command="{Binding OpenBo3SourceExplorerCommand}"/>
-                    <MenuItem Header="Link with _bb-linker" ToggleType="CheckBox"
-                              IsEnabled="{Binding IsBbLinkerInstalled}"
-                              IsChecked="{Binding IsLinkingWithBbLinker, Mode=TwoWay}"
-                              ToolTip.Tip="{Binding LinkWithBbLinkerToolTip}" ToolTip.ShowOnDisabled="True"/>
+                    <MenuItem Header="Link with D_ragon" ToggleType="CheckBox"
+                              IsEnabled="{Binding IsDragonInstalled}"
+                              IsChecked="{Binding IsLinkingWithDragon, Mode=TwoWay}"
+                              ToolTip.Tip="{Binding LinkWithDragonToolTip}" ToolTip.ShowOnDisabled="True"/>
                     <Separator/>
                     <MenuItem Header="Setup _Doctor…" Click="OnSetupDoctorClick"/>
                     <MenuItem Header="_Components…" Click="OnComponentsClick"

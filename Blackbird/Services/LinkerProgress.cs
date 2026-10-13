@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Blackbird.Services;
 
-/// <summary>One thing bb-linker's <c>-progress</c> stream (docs/progress.md in bb-linker) or the build around it reports.</summary>
+/// <summary>One thing Dragon's <c>-progress</c> stream (docs/progress.md in the Dragon repo) or the build around it reports.</summary>
 public abstract record LinkerEvent;
 
 /// <summary>The linker step is over (it exited, or was stopped): whatever it last reported no longer holds.</summary>
@@ -19,7 +19,7 @@ public sealed record LinkerStepEnded : LinkerEvent
 }
 
 /// <summary>
-/// Where a bb-linker run is: the whole run's estimated percent, the stage of the zone being linked, and how far
+/// Where a Dragon run is: the whole run's estimated percent, the stage of the zone being linked, and how far
 /// through the assets it is.
 /// </summary>
 public sealed record LinkerProgress(
@@ -63,7 +63,7 @@ public sealed record LinkerProgress(
     }
 }
 
-/// <summary>Folds bb-linker's JSON-line events into <see cref="LinkerEvent"/>s.</summary>
+/// <summary>Folds Dragon's JSON-line events into <see cref="LinkerEvent"/>s.</summary>
 internal sealed class LinkerProgressState
 {
     private string _zone = "";
@@ -136,7 +136,7 @@ internal sealed class LinkerProgressState
 }
 
 /// <summary>
-/// The launcher's end of bb-linker's <c>-progress</c> pipe: creates the pipe before the linker starts (it connects as a
+/// The launcher's end of Dragon's <c>-progress</c> pipe: creates the pipe before the linker starts (it connects as a
 /// client and writes) and reports each event until the linker closes it. Reading never blocks the build;
 /// a linker that never connects costs nothing but this object.
 /// </summary>

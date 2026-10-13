@@ -65,7 +65,7 @@ public partial class MainWindow : Window
             logView.ActionRequested += OnLogViewAction;
 
         // Dragon may have been installed (or removed) while Blackbird was in the background.
-        Activated += (_, _) => ViewModel?.RefreshBbLinker();
+        Activated += (_, _) => ViewModel?.RefreshDragon();
 
         // Later and Close in the component flyout take the control away; the flyout goes with it.
         DataContextChanged += (_, _) =>
@@ -482,7 +482,7 @@ public partial class MainWindow : Window
 
         yield return PaletteAction("new-map", "New map or mod…", "Create a map from a template, or a mod with the zones you pick", "new create map mod template zone add", 10, shortcut: "Ctrl+N");
         yield return PaletteAction("setup-doctor", "Setup Doctor…", "Check the game and Mod Tools folders", "setup doctor paths tools health fix diagnose", 20);
-        yield return PaletteAction("components", "Components…", "The Mod Tools apps installed for this game, and what they unlock", "components apex dragon stock library ultrasound radiant plugins mtplugins bb-linker linker carry installed", 21);
+        yield return PaletteAction("components", "Components…", "The Mod Tools apps installed for this game, and what they unlock", "components apex dragon stock library ultrasound radiant plugins mtplugins Dragon linker carry installed", 21);
         yield return PaletteAction("asset-editor", "Asset Editor", "Open AssetEditor_modtools.exe", "ape asset editor tools gdt gdtdb", 30, shortcut: "Ctrl+Shift+A");
         yield return PaletteAction("radiant", "Radiant", "Open the Radiant level editor", "radiant level editor tools map edit", 31, shortcut: "Ctrl+Shift+R");
 

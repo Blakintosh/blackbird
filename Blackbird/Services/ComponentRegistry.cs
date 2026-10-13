@@ -76,7 +76,7 @@ public static class ComponentPaths
 
 /// <summary>
 /// Blackbird's entry in the components registry (<c>blackbird.json</c>): what it is, whether it links with
-/// bb-linker and with which, and how the last link of each project went. Written whole to a temp file and renamed
+/// Dragon and with which, and how the last link of each project went. Written whole to a temp file and renamed
 /// over the old one, so a reader never sees half of it. Best effort: another app's notes are not worth failing a build.
 /// </summary>
 public sealed class ComponentRegistry
@@ -85,16 +85,16 @@ public sealed class ComponentRegistry
 
     private readonly Func<string> _installPath;
     private readonly Func<string> _toolsPath;
-    private readonly Func<bool> _useBbLinker;
+    private readonly Func<bool> _useDragon;
     private readonly object _lock = new();
     private readonly Dictionary<string, JsonObject> _builds = new(StringComparer.OrdinalIgnoreCase);
     private bool _loaded;
 
-    public ComponentRegistry(Func<string> installPath, Func<string> toolsPath, Func<bool> useBbLinker)
+    public ComponentRegistry(Func<string> installPath, Func<string> toolsPath, Func<bool> useDragon)
     {
         _installPath = installPath;
         _toolsPath = toolsPath;
-        _useBbLinker = useBbLinker;
+        _useDragon = useDragon;
     }
 
     public static string Version { get; } = AppUpdates.CurrentVersion;
@@ -132,11 +132,13 @@ public sealed class ComponentRegistry
                 return;
 
             var tools = _toolsPath();
-            var configured = BbLinker.ConfiguredPath(tools);
+            var configured = DragonLinker.ConfiguredPath(tools);
             var found = File.Exists(configured);
-            var useBbLinker = _useBbLinker();
-            var info = found ? BbLinker.Probe(configured, BbLinker.InstallEnvironment(install, tools)) : null;
+            var useDragon = _useDragon();
+            var info = found ? DragonLinker.Probe(configured, DragonLinker.InstallEnvironment(install, tools)) : null;
             var carries = info?.HasStockCarry == true;
+            var effective = useDragon && found && carries;
+            var dev = found && DragonLinker.IsOverride(configured);
 
             JsonObject builds;
             lock (_lock)
@@ -152,11 +154,11 @@ public sealed class ComponentRegistry
                 ["id"] = "blackbird",
                 ["version"] = Version,
                 ["path"] = Environment.ProcessPath ?? "",
-                ["use_bb_linker"] = useBbLinker,
-                ["bb_linker_path"] = configured,
-                ["bb_linker_effective"] = useBbLinker && found && carries,
-                ["bb_linker_version"] = info?.Version,
-                ["bb_linker_dev_build"] = found && BbLinker.IsOverride(configured),
+                ["use_dragon"] = useDragon,
+                ["dragon_path"] = configured,
+                ["dragon_effective"] = effective,
+                ["dragon_version"] = info?.Version,
+                ["dragon_dev_build"] = dev,
                 ["written_at"] = DateTime.UtcNow.ToString("o"),
                 ["last_builds"] = builds,
             };

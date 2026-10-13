@@ -33,14 +33,14 @@ public partial class BuildService : IBuildService
             var blocked = step.CarryBlockedReason;
             if (blocked is null && step.CarryMarker is not null && step.Fallback is not null)
             {
-                var info = await BbLinker.ProbeAsync(step.Executable, step.Environment).ConfigureAwait(false);
-                blocked = BbLinker.CarryBlockedReason(true, true, true,
-                    info?.Has(step.StockDependency?.Capability ?? BbLinker.StockCarryCapability) == true, step.StockDependency);
+                var info = await DragonLinker.ProbeAsync(step.Executable, step.Environment).ConfigureAwait(false);
+                blocked = DragonLinker.CarryBlockedReason(true, true, true,
+                    info?.Has(step.StockDependency?.Capability ?? DragonLinker.StockCarryCapability) == true, step.StockDependency);
             }
             if (blocked is null)
                 continue;
             progress.Report($"\n[launcher] {step.Description}: {blocked}\n");
-            step.OnLinked?.Invoke(new LinkOutcome(LinkerName(step), false, BbLinker.ExitStockCarry, Ran: false));
+            step.OnLinked?.Invoke(new LinkOutcome(LinkerName(step), false, DragonLinker.ExitStockCarry, Ran: false));
             return false;
         }
 
@@ -58,9 +58,9 @@ public partial class BuildService : IBuildService
                 continue;
             }
 
-            // Every log says which linker linked: a coloured Dragon line from bb-linker itself, or the stock linker's plain one.
+            // Every log says which linker linked: a coloured Dragon line from Dragon itself, or the stock linker's plain one.
             var header = command.ReportsProgress
-                ? await BbLinker.HeaderAsync(command.Executable, command.Environment).ConfigureAwait(false)
+                ? await DragonLinker.HeaderAsync(command.Executable, command.Environment).ConfigureAwait(false)
                 : command.Header;
             if (header is not null)
                 progress.Report($"\n{header}\n");
@@ -120,7 +120,7 @@ public partial class BuildService : IBuildService
             try
             {
                 if (command.ReportsProgress && linkerProgress is not null
-                    && await BbLinker.SupportsAsync(command.Executable, "-progress", command.Environment).ConfigureAwait(false))
+                    && await DragonLinker.SupportsAsync(command.Executable, "-progress", command.Environment).ConfigureAwait(false))
                 {
                     try
                     {
@@ -178,10 +178,10 @@ public partial class BuildService : IBuildService
 
             ct.ThrowIfCancellationRequested();
 
-            // Only a bb-linker step has a say in falling back; it is told whether its project depends on stock carry.
+            // Only a Dragon step has a say in falling back; it is told whether its project depends on stock carry.
             var next = command.Fallback is null
-                ? BbLinker.Next.Accept
-                : BbLinker.AfterStep(process.ExitCode, command.CarryMarker is not null);
+                ? DragonLinker.Next.Accept
+                : DragonLinker.AfterStep(process.ExitCode, command.CarryMarker is not null);
             // gdtdb exits 1 when it reported errors (duplicate assets, say); those builds keep running it.
             if (command.GdtDbGate is { } ranGate)
             {
@@ -191,16 +191,16 @@ public partial class BuildService : IBuildService
                     ranGate.Forget();
             }
 
-            if (next == BbLinker.Next.UseStockLinker && command.Fallback is { } fallback)
+            if (next == DragonLinker.Next.UseStockLinker && command.Fallback is { } fallback)
             {
-                progress.Report($"\n[launcher] bb-linker can't link this yet (exit 0x{process.ExitCode:X8}), so the stock linker is linking it.\n");
+                progress.Report($"\n[launcher] Dragon can't link this yet (exit 0x{process.ExitCode:X8}), so the stock linker is linking it.\n");
                 queue.Insert(index + 1, fallback);
                 continue;
             }
 
-            if (next == BbLinker.Next.FailStockCarry)
+            if (next == DragonLinker.Next.FailStockCarry)
             {
-                progress.Report($"\n[launcher] {BbLinker.CarryFailureMessage(process.ExitCode, command.StockDependency)}\n");
+                progress.Report($"\n[launcher] {DragonLinker.CarryFailureMessage(process.ExitCode, command.StockDependency)}\n");
                 command.OnLinked?.Invoke(new LinkOutcome(LinkerName(command), false, process.ExitCode));
                 allSucceeded = false;
                 if (!ignoreErrors)
@@ -224,7 +224,7 @@ public partial class BuildService : IBuildService
         return allSucceeded;
     }
 
-    private static string LinkerName(BuildCommand command) => command.ReportsProgress ? "bb-linker" : "stock";
+    private static string LinkerName(BuildCommand command) => command.ReportsProgress ? "dragon" : "stock";
 
     private static async Task FlushOutputPeriodicallyAsync(
         StringBuilder outputBuffer,

@@ -9,16 +9,16 @@ using System.Threading.Tasks;
 namespace Blackbird.Services;
 
 /// <summary>
-/// bb-linker, the Rust linker (Dragon in the Components list). When <c>bb-linker\bb-linker.exe</c> sits beside the
-/// launcher (or <c>BLACKBIRD_BB_LINKER</c> names one) and Tools > Link with bb-linker is on, normal builds link with it
+/// Dragon, the Rust linker. When <c>bin\dragon.exe</c> is in the Mod Tools folder (or <c>BLACKBIRD_DRAGON</c> names one)
+/// and Tools > Link with Dragon is on, normal builds link with it
 /// and fall back to the stock linker for anything it can't link yet, except for projects that depend on stock carry.
 /// </summary>
-public static class BbLinker
+public static class DragonLinker
 {
-    /// <summary>An input bb-linker can't convert yet; the stock linker should link instead.</summary>
+    /// <summary>An input Dragon can't convert yet; the stock linker should link instead.</summary>
     public const int ExitUnsupported = 0x0BB10001;
 
-    /// <summary>bb-linker failed or crashed; the stock linker should link instead.</summary>
+    /// <summary>Dragon failed or crashed; the stock linker should link instead.</summary>
     public const int ExitInternal = 0x0BB10002;
 
     /// <summary>
@@ -27,18 +27,18 @@ public static class BbLinker
     /// </summary>
     public const int ExitStockCarry = 0x0BB10003;
 
-    /// <summary>The capability <c>bb-linker -capabilities</c> lists when it can carry stock assets.</summary>
+    /// <summary>The capability <c>dragon -capabilities</c> lists when it can carry stock assets.</summary>
     public const string StockCarryCapability = "stock-carry";
 
     /// <summary>What the launcher says next to every refusal to link a carry project with the stock linker.</summary>
-    public const string CarryHint = "Create a local copy in Apex, or turn on Link with bb-linker.";
+    public const string CarryHint = "Create a local copy in Apex, or turn on Link with Dragon.";
 
-    /// <summary>The marker bb-linker writes beside a zone's source when a link carried stock assets.</summary>
+    /// <summary>The marker Dragon writes beside a zone's source when a link carried stock assets.</summary>
     public static string CarryMarkerPath(string projectFolder, string zoneName) =>
         Path.Combine(projectFolder, "zone_source", zoneName + ".stockcarry.json");
 
     /// <summary>
-    /// The marker bb-linker writes beside a zone's source when a link carried stock sound aliases (Ultrasound reads it
+    /// The marker Dragon writes beside a zone's source when a link carried stock sound aliases (Ultrasound reads it
     /// for their audio). The stock linker can't link those aliases either, so it counts exactly like a carry marker.
     /// </summary>
     public static string SoundMarkerPath(string projectFolder, string zoneName) =>
@@ -65,7 +65,7 @@ public static class BbLinker
     }
 
     /// <summary>The hint next to a refusal for a map that uses only stock sounds.</summary>
-    public const string SoundHint = "Apex's Stock sounds view can make local copies of them, or turn on Link with bb-linker.";
+    public const string SoundHint = "Apex's Stock sounds view can make local copies of them, or turn on Link with Dragon.";
 
     /// <summary>
     /// What the map's zone needs Dragon for, or null when nothing. <c>.stockcarry.json</c> is the dependency marker: it
@@ -124,11 +124,11 @@ public static class BbLinker
         return -1;
     }
 
-    /// <summary>The capability <c>bb-linker -capabilities</c> lists when it can carry stock sound aliases.</summary>
+    /// <summary>The capability <c>dragon -capabilities</c> lists when it can carry stock sound aliases.</summary>
     public const string StockSoundCapability = "stock-sound";
 
     /// <summary>
-    /// The install a bb-linker run is for, as the stock launcher passes it to the Mod Tools: without these, Dragon falls
+    /// The install a Dragon run is for, as the stock launcher passes it to the Mod Tools: without these, Dragon falls
     /// back to its own default install, which isn't the one Blackbird is building.
     /// </summary>
     public static Dictionary<string, string> InstallEnvironment(string? gamePath, string? toolsPath)
@@ -145,34 +145,31 @@ public static class BbLinker
         return environment;
     }
 
-    /// <summary>The installed bb-linker's place, ignoring <see cref="OverrideVariable"/>, whether or not it exists.</summary>
-    public static string InstalledPath(string? toolsPath = null)
-    {
-        var beside = Path.Combine(AppContext.BaseDirectory, "bb-linker", "bb-linker.exe");
-        if (File.Exists(beside) || string.IsNullOrEmpty(toolsPath))
-            return beside;
-        return Path.Combine(toolsPath, "bin", "bb-linker", "bb-linker.exe");
-    }
+    /// <summary>The installed Dragon's place, ignoring <see cref="OverrideVariable"/>, whether or not it exists: <c>bin\dragon.exe</c>.</summary>
+    public static string InstalledPath(string? toolsPath = null) =>
+        string.IsNullOrEmpty(toolsPath)
+            ? Path.Combine(AppContext.BaseDirectory, "dragon.exe")
+            : Path.Combine(toolsPath, "bin", "dragon.exe");
 
-    /// <summary>Names a bb-linker to use instead of the installed one (a developer's own build).</summary>
-    public const string OverrideVariable = "BLACKBIRD_BB_LINKER";
+    /// <summary>Names a Dragon to use instead of the installed one (a developer's own build).</summary>
+    public const string OverrideVariable = "BLACKBIRD_DRAGON";
 
-    /// <summary>The bb-linker <see cref="OverrideVariable"/> names, or null when it isn't set.</summary>
+    /// <summary>The Dragon <see cref="OverrideVariable"/> names, or null when it isn't set.</summary>
     public static string? OverridePath =>
         Environment.GetEnvironmentVariable(OverrideVariable) is { Length: > 0 } path ? path : null;
 
-    /// <summary>The configured path (<c>BLACKBIRD_BB_LINKER</c>) or the default one, whether or not it exists.</summary>
+    /// <summary>The configured path (<c>BLACKBIRD_DRAGON</c>) or the default one, whether or not it exists.</summary>
     public static string ConfiguredPath(string? toolsPath = null)
     {
         return OverridePath ?? InstalledPath(toolsPath);
     }
 
-    /// <summary>The bb-linker to link with, or null when there is none.</summary>
+    /// <summary>The Dragon to link with, or null when there is none.</summary>
     public static string? Locate(string? toolsPath = null) =>
         ConfiguredPath(toolsPath) is var path && File.Exists(path) ? path : null;
 
     /// <summary>
-    /// Why Tools > Link with bb-linker can't be turned on, or null when bb-linker is there. Not an error: the stock
+    /// Why Tools > Link with Dragon can't be turned on, or null when Dragon is there. Not an error: the stock
     /// linker links everything without it.
     /// </summary>
     public static string? MissingReason(string? toolsPath = null)
@@ -182,7 +179,7 @@ public static class BbLinker
             return null;
         return OverridePath is not null
             ? $"{OverrideVariable} names {path}, which doesn't exist. The stock linker links every build."
-            : $"bb-linker isn't installed (Blackbird looks for {path}). The stock linker links every build.";
+            : $"Dragon isn't installed (Blackbird looks for {path}). The stock linker links every build.";
     }
 
     /// <summary>Whether <paramref name="exe"/> is the one <see cref="OverrideVariable"/> names, not the installed one.</summary>
@@ -190,7 +187,7 @@ public static class BbLinker
         OverridePath is { } path && string.Equals(Path.GetFullPath(path), Path.GetFullPath(exe), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// The coloured line a build log shows before bb-linker's output: <c>Dragon 0.1.0 (bb-linker, built 12 Oct 2026 21:04)</c>,
+    /// The coloured line a build log shows before Dragon's output: <c>Dragon 1.0.0 (a1b2c3d4e, built 12 Oct 2026 21:04)</c>,
     /// with the commit when the linker reports one and the path when it is a developer's build named by
     /// <see cref="OverrideVariable"/>. Runs <c>-capabilities</c> once per exe build.
     /// </summary>
@@ -209,7 +206,7 @@ public static class BbLinker
 
     public static string Header(string exe, Info? info, bool devBuild, DateTime? written)
     {
-        var details = new List<string> { "bb-linker" };
+        var details = new List<string>();
         if (devBuild)
             details.Add($"dev build: {exe}");
         if (info?.Commit is { Length: > 0 } commit)
@@ -222,8 +219,8 @@ public static class BbLinker
         return $"^4Dragon {version} ({string.Join(", ", details)})";
     }
 
-    /// <summary>The note on the stock linker's line when bb-linker is there but the switch is off.</summary>
-    public const string SwitchedOffNote = "bb-linker is installed, but Tools > Link with bb-linker is off.";
+    /// <summary>The note on the stock linker's line when Dragon is there but the switch is off.</summary>
+    public const string SwitchedOffNote = "Dragon is installed, but Tools > Link with Dragon is off.";
 
     /// <summary>The note on the stock linker's line for Prepare for publish, which always links with it.</summary>
     public const string PublishNote = "Prepare for publish always links with it.";
@@ -244,7 +241,7 @@ public static class BbLinker
     public static string StockHeader(string linkerExe, string? note) =>
         $"[launcher] Linking with the stock linker ({Path.GetFileName(linkerExe)}).{(note is null ? "" : " " + note)}";
 
-    /// <summary>What <c>bb-linker -capabilities</c> said about the exe (the install-dependent parts are read elsewhere).</summary>
+    /// <summary>What <c>dragon -capabilities</c> said about the exe (the install-dependent parts are read elsewhere).</summary>
     public sealed record Info(string? Version, IReadOnlyList<string> Capabilities, string? Commit = null, string? Built = null, int? CarryContract = null)
     {
         public bool HasStockCarry => Has(StockCarryCapability);
@@ -252,7 +249,7 @@ public static class BbLinker
         public bool Has(string capability) => System.Linq.Enumerable.Contains(Capabilities, capability);
     }
 
-    /// <summary>The stock-carry contract this launcher and the Stock Library understand (bb-linker's <c>carry_contract</c>).</summary>
+    /// <summary>The stock-carry contract this launcher and the Stock Library understand (Dragon's <c>carry_contract</c>).</summary>
     public const int CarryContract = 1;
 
     private static readonly ConcurrentDictionary<(string Path, long Size, DateTime Stamp), Info?> Probed = new();
@@ -310,7 +307,7 @@ public static class BbLinker
         }
     }
 
-    /// <summary>What happens after a bb-linker step ends.</summary>
+    /// <summary>What happens after a Dragon step ends.</summary>
     public enum Next
     {
         /// <summary>Its result stands (success, or errors the log shows).</summary>
@@ -326,7 +323,7 @@ public static class BbLinker
     /// <summary>
     /// The one fallback rule. <c>0x0BB10003</c> is never a fallback. The two "use the stock linker" codes are one only
     /// for a project that doesn't depend on stock carry; for one that does (it has a <c>.stockcarry.json</c> marker) the
-    /// stock linker can't link it, so the build fails with bb-linker's own message instead.
+    /// stock linker can't link it, so the build fails with Dragon's own message instead.
     /// </summary>
     public static Next AfterStep(int exitCode, bool projectDependsOnCarry)
     {
@@ -339,42 +336,42 @@ public static class BbLinker
 
     /// <summary>
     /// Why a project that depends on stock carry can't be linked with the linker about to run, or null when it can.
-    /// <paramref name="useBbLinker"/> is Tools > Link with bb-linker; the other two describe the bb-linker that would run.
+    /// <paramref name="useDragon"/> is Tools > Link with Dragon; the other two describe the Dragon that would run.
     /// </summary>
-    public static string? CarryBlockedReason(bool projectDependsOnCarry, bool useBbLinker, bool linkerFound, bool hasStockCarry,
+    public static string? CarryBlockedReason(bool projectDependsOnCarry, bool useDragon, bool linkerFound, bool hasStockCarry,
         StockDependency? dependency = null)
     {
         if (!projectDependsOnCarry)
             return null;
         var what = dependency?.What ?? "stock assets";
         var hint = dependency?.Hint ?? CarryHint;
-        var head = $"This project uses {what} that only bb-linker can link";
-        if (!useBbLinker)
-            return $"{head}, and Link with bb-linker is off, so the stock linker would drop them. {hint}";
+        var head = $"This project uses {what} that only Dragon can link";
+        if (!useDragon)
+            return $"{head}, and Link with Dragon is off, so the stock linker would drop them. {hint}";
         if (!linkerFound)
-            return $"{head}, and bb-linker isn't installed, so the stock linker would drop them. {hint}";
+            return $"{head}, and Dragon isn't installed, so the stock linker would drop them. {hint}";
         if (!hasStockCarry)
-            return $"{head}, and this bb-linker can't carry {(dependency?.SoundOnly == true ? "stock sounds" : "stock assets")}, so the stock linker would drop them. {hint}";
+            return $"{head}, and this Dragon can't carry {(dependency?.SoundOnly == true ? "stock sounds" : "stock assets")}, so the stock linker would drop them. {hint}";
         return null;
     }
 
-    /// <summary>The line after a failed link of a carry project (bb-linker's own lines above it name the assets).</summary>
+    /// <summary>The line after a failed link of a carry project (Dragon's own lines above it name the assets).</summary>
     public static string CarryFailureMessage(int exitCode, StockDependency? dependency = null)
     {
         var hint = dependency?.Hint ?? CarryHint;
         if (dependency?.SoundOnly == true)
             return exitCode == ExitStockCarry
-                ? $"bb-linker couldn't carry every stock sound this project uses (exit 0x{exitCode:X8}). The stock linker can't link them, so it wasn't used. {hint}"
-                : $"bb-linker couldn't link this project (exit 0x{exitCode:X8}), and it uses {dependency.What} only bb-linker can link, so the stock linker wasn't used. {hint}";
+                ? $"Dragon couldn't carry every stock sound this project uses (exit 0x{exitCode:X8}). The stock linker can't link them, so it wasn't used. {hint}"
+                : $"Dragon couldn't link this project (exit 0x{exitCode:X8}), and it uses {dependency.What} only Dragon can link, so the stock linker wasn't used. {hint}";
         return exitCode == ExitStockCarry
-            ? $"bb-linker couldn't carry every stock asset this project uses (exit 0x{exitCode:X8}). The stock linker can't link them, so it wasn't used. {hint}"
-            : $"bb-linker couldn't link this project (exit 0x{exitCode:X8}), and it uses stock assets only bb-linker can link, so the stock linker wasn't used. {hint}";
+            ? $"Dragon couldn't carry every stock asset this project uses (exit 0x{exitCode:X8}). The stock linker can't link them, so it wasn't used. {hint}"
+            : $"Dragon couldn't link this project (exit 0x{exitCode:X8}), and it uses stock assets only Dragon can link, so the stock linker wasn't used. {hint}";
     }
 
     private static readonly ConcurrentDictionary<(string Path, DateTime Stamp), Task<string>> Usage = new();
 
     /// <summary>
-    /// Whether this bb-linker takes <paramref name="option"/> (<c>-progress</c>): its usage text, printed
+    /// Whether this Dragon takes <paramref name="option"/> (<c>-progress</c>): its usage text, printed
     /// when run bare, lists the options it knows. Read once per exe build, so a linker from before an option still
     /// links, just without it.
     /// </summary>

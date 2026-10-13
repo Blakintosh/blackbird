@@ -39,7 +39,7 @@ public class JsonSettingsService : ISettingsService
     public Dictionary<string, ProjectSettings> Projects { get; set; } = new();
     public List<ToolShortcut> ToolShortcuts { get; set; } = [];
     public string Theme { get; set; } = nameof(ThemeChoice.System);
-    public bool UseBbLinker { get; set; } = true;
+    public bool UseDragon { get; set; } = true;
     public DateTime? LastUpdateCheckUtc { get; set; }
     public bool CheckComponentUpdates { get; set; } = true;
 
@@ -162,7 +162,7 @@ public class JsonSettingsService : ISettingsService
         Projects = data.Projects ?? new();
         ToolShortcuts = data.ToolShortcuts ?? [];
         Theme = data.Theme ?? nameof(ThemeChoice.System);
-        UseBbLinker = data.UseBbLinker ?? true;
+        UseDragon = data.UseDragon ?? true;
         LastUpdateCheckUtc = data.LastUpdateCheckUtc;
         CheckComponentUpdates = data.CheckComponentUpdates ?? true;
     }
@@ -197,7 +197,7 @@ public class JsonSettingsService : ISettingsService
             Projects = Projects,
             ToolShortcuts = ToolShortcuts,
             Theme = Theme,
-            UseBbLinker = UseBbLinker,
+            UseDragon = UseDragon,
             LastUpdateCheckUtc = LastUpdateCheckUtc,
             CheckComponentUpdates = CheckComponentUpdates,
         };
@@ -270,7 +270,7 @@ public class JsonSettingsService : ISettingsService
         public Dictionary<string, ProjectSettings>? Projects { get; set; } = new();
         public List<ToolShortcut>? ToolShortcuts { get; set; } = [];
         public string? Theme { get; set; } = nameof(ThemeChoice.System);
-        public bool? UseBbLinker { get; set; } = true;
+        public bool? UseDragon { get; set; } = true;
         public DateTime? LastUpdateCheckUtc { get; set; }
         public bool? CheckComponentUpdates { get; set; } = true;
     }

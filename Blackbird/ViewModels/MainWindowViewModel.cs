@@ -1154,11 +1154,11 @@ public partial class MainWindowViewModel : ObservableObject
         _fileSystem = fileSystem;
         _buildService = buildService;
         _settings = settings;
-        _componentRegistry = new ComponentRegistry(() => _fileSystem.GamePath, () => _fileSystem.ToolsPath, () => _settings.UseBbLinker);
-        // Dragon or the Stock Library was replaced: look for bb-linker again and rewrite Blackbird's registry entry.
+        _componentRegistry = new ComponentRegistry(() => _fileSystem.GamePath, () => _fileSystem.ToolsPath, () => _settings.UseDragon);
+        // Dragon or the Stock Library was replaced: look for Dragon again and rewrite Blackbird's registry entry.
         componentUpdates.Installed += (_, _) =>
         {
-            RefreshBbLinker();
+            RefreshDragon();
             _ = _componentRegistry.WriteAsync();
         };
 
@@ -1893,33 +1893,33 @@ public partial class MainWindowViewModel : ObservableObject
     public bool IsThemeLight => Theme == ThemeChoice.Light;
 
     /// <summary>
-    /// Tools > Link with bb-linker is enabled only when bb-linker is installed (<c>&lt;BO3&gt;\bin\bb-linker\bb-linker.exe</c>)
-    /// or named by <c>BLACKBIRD_BB_LINKER</c>; otherwise it is disabled and its tooltip says why. Read when the menu binds.
+    /// Tools > Link with Dragon is enabled only when Dragon is installed (<c>&lt;BO3&gt;\bin\dragon.exe</c>)
+    /// or named by <c>BLACKBIRD_DRAGON</c>; otherwise it is disabled and its tooltip says why. Read when the menu binds.
     /// </summary>
-    public bool IsBbLinkerInstalled => BbLinker.Locate(_fileSystem.ToolsPath) is not null;
+    public bool IsDragonInstalled => DragonLinker.Locate(_fileSystem.ToolsPath) is not null;
 
     /// <summary>
-    /// Looks for bb-linker again (one file check), so Tools > Link with bb-linker enables without a restart once Dragon is
+    /// Looks for Dragon again (one file check), so Tools > Link with Dragon enables without a restart once Dragon is
     /// installed. Called when the window regains focus and before each build.
     /// </summary>
-    public void RefreshBbLinker()
+    public void RefreshDragon()
     {
-        OnPropertyChanged(nameof(IsBbLinkerInstalled));
-        OnPropertyChanged(nameof(IsLinkingWithBbLinker));
-        OnPropertyChanged(nameof(LinkWithBbLinkerToolTip));
+        OnPropertyChanged(nameof(IsDragonInstalled));
+        OnPropertyChanged(nameof(IsLinkingWithDragon));
+        OnPropertyChanged(nameof(LinkWithDragonToolTip));
     }
 
-    /// <summary>The menu's check: on only when bb-linker is there and the setting is on, so a missing linker never reads as "on".</summary>
-    public bool IsLinkingWithBbLinker
+    /// <summary>The menu's check: on only when Dragon is there and the setting is on, so a missing linker never reads as "on".</summary>
+    public bool IsLinkingWithDragon
     {
-        get => IsBbLinkerInstalled && UseBbLinker;
-        set => UseBbLinker = value;
+        get => IsDragonInstalled && UseDragon;
+        set => UseDragon = value;
     }
 
-    public string LinkWithBbLinkerToolTip =>
-        BbLinker.MissingReason(_fileSystem.ToolsPath)
+    public string LinkWithDragonToolTip =>
+        DragonLinker.MissingReason(_fileSystem.ToolsPath)
         ?? "Link with Dragon, the Rust linker, which is faster on rebuilds. Anything it can't link yet falls back to the stock linker."
-        + (BbLinker.OverridePath is { } dev ? $" Dev build: {dev} ({BbLinker.OverrideVariable})." : "");
+        + (DragonLinker.OverridePath is { } dev ? $" Dev build: {dev} ({DragonLinker.OverrideVariable})." : "");
 
     /// <summary>Help > Updates > Update Dragon and Stock Library: whether the automatic check looks for their updates.</summary>
     public bool CheckComponentUpdates
@@ -1935,27 +1935,27 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    public bool UseBbLinker
+    public bool UseDragon
     {
-        get => _settings.UseBbLinker;
+        get => _settings.UseDragon;
         set
         {
-            if (_settings.UseBbLinker != value)
+            if (_settings.UseDragon != value)
             {
-                _settings.UseBbLinker = value;
+                _settings.UseDragon = value;
                 QueueSettingsSave();
                 _ = _componentRegistry.WriteAsync();
             }
             OnPropertyChanged();
-            OnPropertyChanged(nameof(IsLinkingWithBbLinker));
+            OnPropertyChanged(nameof(IsLinkingWithDragon));
         }
     }
 
     /// <summary>What the Components view shows for the current install. Reads the disk; the result is a snapshot.</summary>
     public Task<ComponentsReport> ScanComponentsAsync()
     {
-        var (game, tools, useBbLinker) = (_fileSystem.GamePath, _fileSystem.ToolsPath, _settings.UseBbLinker);
-        return Task.Run(() => ComponentScanner.Scan(game, tools, useBbLinker));
+        var (game, tools, useDragon) = (_fileSystem.GamePath, _fileSystem.ToolsPath, _settings.UseDragon);
+        return Task.Run(() => ComponentScanner.Scan(game, tools, useDragon));
     }
 
     [RelayCommand]
@@ -2902,12 +2902,12 @@ public partial class MainWindowViewModel : ObservableObject
     /// </summary>
     private async Task<List<BuildCommand>?> PlanBuildAsync(bool runAfterBuild)
     {
-        RefreshBbLinker();
+        RefreshDragon();
         var commands = BuildCommandList(forceRun: runAfterBuild);
         if (ConfirmAsync is not { } confirm || !commands.Any(c => c.CarryBlockedReason is not null))
             return commands;
         var dependency = commands.FirstOrDefault(c => c.CarryBlockedReason is not null)?.StockDependency;
-        if (!await confirm(StockAnywayTitle, BbLinker.StockAnywayMessage(dependency), StockAnywayAction))
+        if (!await confirm(StockAnywayTitle, DragonLinker.StockAnywayMessage(dependency), StockAnywayAction))
         {
             StatusText = "Build not started. This map needs Dragon for its stock assets.";
             return null;
@@ -3115,17 +3115,17 @@ public partial class MainWindowViewModel : ObservableObject
         var ran = links.Where(l => l.Ran).ToList();
         if (ran.Count == 0)
             return null;
-        var dragon = ran.Any(l => l.Linker == "bb-linker");
+        var dragon = ran.Any(l => l.Linker == "dragon");
         var fellBack = ran.Any(l => l.FellBack);
-        var stock = ran.Any(l => l.Linker != "bb-linker" && !l.FellBack);
+        var stock = ran.Any(l => l.Linker != "dragon" && !l.FellBack);
         if (dragon && !fellBack && !stock)
             return "linked with Dragon";
         if (fellBack && !dragon && !stock)
-            return "linked with the stock linker (bb-linker fell back)";
+            return "linked with the stock linker (Dragon fell back)";
         if (!dragon && !fellBack)
             return "linked with the stock linker";
         return fellBack
-            ? "linked with Dragon and the stock linker (bb-linker fell back)"
+            ? "linked with Dragon and the stock linker (Dragon fell back)"
             : "linked with Dragon and the stock linker";
     }
 
@@ -3313,7 +3313,7 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     /// <summary>
-    /// A link: bb-linker when it is installed and switched on, otherwise the stock linker. Either links the main and
+    /// A link: Dragon when it is installed and switched on, otherwise the stock linker. Either links the main and
     /// localized zones in one command.
     /// </summary>
     private void AddLinkCommands(List<BuildCommand> commands, string projectFolder, string zoneName,
@@ -3321,13 +3321,13 @@ public partial class MainWindowViewModel : ObservableObject
     {
         var linker = Path.Combine(_fileSystem.ToolsPath, "bin", "linker_modtools.exe");
         var project = Path.GetFileName(projectFolder);
-        var bbLinker = BbLinker.Locate(_fileSystem.ToolsPath);
+        var dragonExe = DragonLinker.Locate(_fileSystem.ToolsPath);
 
-        // A project that bb-linker carried stock assets or stock sound aliases into has a marker; the stock linker can't link it.
-        var dependency = BbLinker.StockDependencyOf(projectFolder, zoneName);
+        // A project that Dragon carried stock assets or stock sound aliases into has a marker; the stock linker can't link it.
+        var dependency = DragonLinker.StockDependencyOf(projectFolder, zoneName);
         var carryMarker = dependency?.Marker;
         var dependsOnCarry = carryMarker is not null;
-        var useBbLinker = _settings.UseBbLinker && bbLinker is not null;
+        var useDragon = _settings.UseDragon && dragonExe is not null;
 
         Action<LinkOutcome> Record(bool fellBack) =>
             outcome =>
@@ -3338,38 +3338,38 @@ public partial class MainWindowViewModel : ObservableObject
                 _ = _componentRegistry.RecordBuildAsync(project, recorded);
             };
 
-        // The first stock link of a build names the linker, once, and says why bb-linker isn't linking when it's there.
+        // The first stock link of a build names the linker, once, and says why Dragon isn't linking when it's there.
         string? StockHeader(string? note) =>
-            commands.Any(c => c.Header is not null) ? null : BbLinker.StockHeader(linker, note);
-        var switchedOffNote = bbLinker is not null && !_settings.UseBbLinker ? BbLinker.SwitchedOffNote : null;
+            commands.Any(c => c.Header is not null) ? null : DragonLinker.StockHeader(linker, note);
+        var switchedOffNote = dragonExe is not null && !_settings.UseDragon ? DragonLinker.SwitchedOffNote : null;
 
-        // Prepare for publish links with the stock linker alone, except when the project needs bb-linker to link at all.
-        if (linkOnly && !(dependsOnCarry && useBbLinker))
+        // Prepare for publish links with the stock linker alone, except when the project needs Dragon to link at all.
+        if (linkOnly && !(dependsOnCarry && useDragon))
         {
             List<string> linkOnlyArgs = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
             commands.Add(new BuildCommand(linker, linkOnlyArgs, description)
             {
-                Header = dependsOnCarry ? null : StockHeader(useBbLinker ? BbLinker.PublishNote : switchedOffNote),
+                Header = dependsOnCarry ? null : StockHeader(useDragon ? DragonLinker.PublishNote : switchedOffNote),
                 CarryMarker = dependsOnCarry ? carryMarker : null,
                 StockDependency = dependency,
                 CarryBlockedReason = dependsOnCarry
-                    ? BbLinker.CarryBlockedReason(true, _settings.UseBbLinker, bbLinker is not null, true, dependency)
+                    ? DragonLinker.CarryBlockedReason(true, _settings.UseDragon, dragonExe is not null, true, dependency)
                     : null,
                 OnLinked = Record(fellBack: false),
             });
             return;
         }
 
-        // bb-linker links the main and localized zones in one process, with its own incremental builds,
+        // Dragon links the main and localized zones in one process, with its own incremental builds,
         // and hands anything it can't link yet to the stock linker (but never a project that needs stock carry).
-        if (useBbLinker && bbLinker is { } bbExe)
+        if (useDragon && dragonExe is { } dragonPath)
         {
             List<string> args = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
-            commands.Add(new BuildCommand(bbExe, args, $"{description} (bb-linker)")
+            commands.Add(new BuildCommand(dragonPath, args, $"{description} (Dragon)")
             {
-                // A real build: bb-linker may run snd_convert on the project, as the stock linker does. It links the
+                // A real build: Dragon may run snd_convert on the project, as the stock linker does. It links the
                 // install Blackbird is building, named the way the stock launcher names it to the Mod Tools.
-                Environment = new Dictionary<string, string>(BbLinker.InstallEnvironment(_fileSystem.GamePath, _fileSystem.ToolsPath))
+                Environment = new Dictionary<string, string>(DragonLinker.InstallEnvironment(_fileSystem.GamePath, _fileSystem.ToolsPath))
                 {
                     ["BBL_REAL_BUILD"] = "1",
                 },
@@ -3391,7 +3391,7 @@ public partial class MainWindowViewModel : ObservableObject
             List<string> anywayArgs = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
             commands.Add(new BuildCommand(linker, anywayArgs, description)
             {
-                Header = BbLinker.StockAnywayHeader(linker, dependency),
+                Header = DragonLinker.StockAnywayHeader(linker, dependency),
                 OnLinked = Record(fellBack: false),
             });
             return;
@@ -3399,14 +3399,14 @@ public partial class MainWindowViewModel : ObservableObject
 
         if (dependsOnCarry)
         {
-            // Setting off or bb-linker missing: the stock linker would drop the carried assets, so the build asks first
+            // Setting off or Dragon missing: the stock linker would drop the carried assets, so the build asks first
             // (PlanBuildAsync); without an answer it stops with the reason.
             List<string> blockedArgs = [.. languageArgs, .. extraArgs, "-modsource", zoneName];
             commands.Add(new BuildCommand(linker, blockedArgs, description)
             {
                 CarryMarker = carryMarker,
                 StockDependency = dependency,
-                CarryBlockedReason = BbLinker.CarryBlockedReason(true, _settings.UseBbLinker, bbLinker is not null, true, dependency),
+                CarryBlockedReason = DragonLinker.CarryBlockedReason(true, _settings.UseDragon, dragonExe is not null, true, dependency),
                 OnLinked = Record(fellBack: false),
             });
             return;

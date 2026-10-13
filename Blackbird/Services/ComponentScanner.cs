@@ -22,15 +22,15 @@ public static class ComponentScanner
     public const string StockLibraryUrl = "https://bo3modtools.com/stock-library";
     public const string MtPluginsUrl = "https://github.com/Aidan601/MTPlugins";
 
-    /// <summary>Reads the install. Touches the disk and runs <c>bb-linker -capabilities</c> (cached), so not on the UI thread.</summary>
-    public static ComponentsReport Scan(string gamePath, string toolsPath, bool useBbLinker)
+    /// <summary>Reads the install. Touches the disk and runs <c>dragon -capabilities</c> (cached), so not on the UI thread.</summary>
+    public static ComponentsReport Scan(string gamePath, string toolsPath, bool useDragon)
     {
         var tools = string.IsNullOrWhiteSpace(toolsPath) ? gamePath : toolsPath;
         var bin = Path.Combine(tools, "bin");
         string Entry(string id) => ComponentPaths.Entry(gamePath, id);
 
         var apex = Apex(bin, Entry("apex"));
-        var dragon = Dragon(gamePath, tools, useBbLinker);
+        var dragon = Dragon(gamePath, tools, useDragon);
         var stock = StockLibrary(gamePath, bin, Entry("stocklib"));
         var rows = new List<ComponentRow>
         {
@@ -53,26 +53,26 @@ public static class ComponentScanner
         // own checks (Dragon's registry entry, schema ranges) see things this scan doesn't.
         var (on, reason) = stock.Exe is { } stocklib && StockLibraryVerdict(stocklib, gamePath, tools) is { } verdict
             ? verdict
-            : UseDirectly(dragon, stock, useBbLinker);
+            : UseDirectly(dragon, stock, useDragon);
         return new ComponentsReport { InstallPath = gamePath, Rows = rows, UseDirectly = on, UseDirectlyReason = reason };
     }
 
-    private static (bool On, string Reason) UseDirectly(DragonInfo dragon, StockInfo stock, bool useBbLinker)
+    private static (bool On, string Reason) UseDirectly(DragonInfo dragon, StockInfo stock, bool useDragon)
     {
         if (!dragon.Found)
             return (false, "Dragon isn't installed, so only the stock linker is available.");
-        if (dragon.CarryContract is { } contract && contract != BbLinker.CarryContract)
-            return (false, $"Dragon's carry contract is {contract}; Blackbird and the Stock Library need {BbLinker.CarryContract}. Update them to the same release.");
+        if (dragon.CarryContract is { } contract && contract != DragonLinker.CarryContract)
+            return (false, $"Dragon's carry contract is {contract}; Blackbird and the Stock Library need {DragonLinker.CarryContract}. Update them to the same release.");
         if (!dragon.CanCarry)
             return (false, "This Dragon can't carry stock assets. Update it.");
         if (!stock.Installed)
             return (false, "Stock Library isn't installed, so Dragon has no index of the stock assets.");
         if (!stock.HasIndex)
             return (false, "The Stock Library index isn't built yet.");
-        if (!useBbLinker)
-            return (false, "Link with bb-linker is off in Tools. Projects that use stock assets won't build.");
+        if (!useDragon)
+            return (false, "Link with Dragon is off in Tools. Projects that use stock assets won't build.");
         if (dragon.DevBuild)
-            return (true, $"Stock assets link by name with the dev build of Dragon ({BbLinker.OverrideVariable}); the Stock Library may judge the installed Dragon instead.");
+            return (true, $"Stock assets link by name with the dev build of Dragon ({DragonLinker.OverrideVariable}); the Stock Library may judge the installed Dragon instead.");
         return (true, "Stock assets link by name; Dragon carries them, so there are no copies to make.");
     }
 
@@ -94,7 +94,7 @@ public static class ComponentScanner
             };
             foreach (var arg in new[] { "status", "--install", gamePath, "--json" })
                 startInfo.ArgumentList.Add(arg);
-            foreach (var (name, value) in BbLinker.InstallEnvironment(gamePath, tools))
+            foreach (var (name, value) in DragonLinker.InstallEnvironment(gamePath, tools))
                 startInfo.Environment[name] = value;
             using var process = Process.Start(startInfo);
             if (process is null)
@@ -153,49 +153,49 @@ public static class ComponentScanner
         }, true);
     }
 
-    // ── Dragon (bb-linker) ──────────────────────────────────────────────────
+    // ── Dragon ──────────────────────────────────────────────────
 
     private sealed record DragonInfo(ComponentRow Row, bool Found, bool CanCarry, bool DevBuild = false, int? CarryContract = null);
 
-    private static DragonInfo Dragon(string gamePath, string tools, bool useBbLinker)
+    private static DragonInfo Dragon(string gamePath, string tools, bool useDragon)
     {
-        // Only the bb-linker builds would use. dragon.json names whichever Dragon ran last (a developer's build, a
+        // Only the Dragon builds would use. dragon.json names whichever Dragon ran last (a developer's build, a
         // test), so it never stands in for an installed one.
-        var exe = BbLinker.Locate(tools);
+        var exe = DragonLinker.Locate(tools);
         if (exe is null)
             return new DragonInfo(new ComponentRow
             {
                 Id = "dragon",
                 Name = "Dragon",
                 State = ComponentState.Missing,
-                StateText = BbLinker.OverridePath is null ? "not installed" : "dev build missing",
-                Detail = BbLinker.OverridePath is { } named
-                    ? $"{BbLinker.OverrideVariable} names {named}, which doesn't exist, so builds use the stock linker."
+                StateText = DragonLinker.OverridePath is null ? "not installed" : "dev build missing",
+                Detail = DragonLinker.OverridePath is { } named
+                    ? $"{DragonLinker.OverrideVariable} names {named}, which doesn't exist, so builds use the stock linker."
                     : "A faster linker, and it links stock assets by name so you don't have to copy them.",
                 ActionLabel = "Get Dragon",
                 ActionUrl = DragonUrl,
             }, false, false);
 
-        var dev = BbLinker.IsOverride(exe);
-        var info = BbLinker.Probe(exe, BbLinker.InstallEnvironment(gamePath, tools));
+        var dev = DragonLinker.IsOverride(exe);
+        var info = DragonLinker.Probe(exe, DragonLinker.InstallEnvironment(gamePath, tools));
         var version = info?.Version;
         var kind = dev ? "dev build" : "installed";
         var prefix = version is null ? kind : $"{version} · {kind}";
-        var installed = BbLinker.InstalledPath(tools);
+        var installed = DragonLinker.InstalledPath(tools);
         var devNote = !dev ? ""
             : File.Exists(installed)
-                ? $" This is the dev build {exe} ({BbLinker.OverrideVariable}); the installed Dragon at {installed} isn't used."
-                : $" This is the dev build {exe} ({BbLinker.OverrideVariable}), not an installed Dragon.";
-        if (info?.HasStockCarry == true && info.CarryContract == BbLinker.CarryContract)
+                ? $" This is the dev build {exe} ({DragonLinker.OverrideVariable}); the installed Dragon at {installed} isn't used."
+                : $" This is the dev build {exe} ({DragonLinker.OverrideVariable}), not an installed Dragon.";
+        if (info?.HasStockCarry == true && info.CarryContract == DragonLinker.CarryContract)
             return new DragonInfo(new ComponentRow
             {
                 Id = "dragon",
                 Name = "Dragon",
                 State = ComponentState.Ready,
                 StateText = $"{prefix} · stock-carry",
-                Detail = (useBbLinker
+                Detail = (useDragon
                     ? "Blackbird links with Dragon, so stock assets can be used directly with no copies."
-                    : "Stock assets can be used with no copies, but Link with bb-linker is off in Tools.") + devNote,
+                    : "Stock assets can be used with no copies, but Link with Dragon is off in Tools.") + devNote,
             }, true, true, dev, info.CarryContract);
 
         if (info?.HasStockCarry == true)
@@ -205,7 +205,7 @@ public static class ComponentScanner
                 Name = "Dragon",
                 State = ComponentState.Attention,
                 StateText = $"{prefix} · carry contract {info.CarryContract?.ToString() ?? "unknown"}",
-                Detail = $"This Dragon speaks a different stock-carry contract than Blackbird and the Stock Library ({BbLinker.CarryContract}). Update both to the same release." + devNote,
+                Detail = $"This Dragon speaks a different stock-carry contract than Blackbird and the Stock Library ({DragonLinker.CarryContract}). Update both to the same release." + devNote,
             }, true, false, dev, info.CarryContract);
 
         return new DragonInfo(new ComponentRow
