@@ -206,8 +206,6 @@ public static class ComponentScanner
                 State = ComponentState.Attention,
                 StateText = $"{prefix} · carry contract {info.CarryContract?.ToString() ?? "unknown"}",
                 Detail = $"This Dragon speaks a different stock-carry contract than Blackbird and the Stock Library ({BbLinker.CarryContract}). Update both to the same release." + devNote,
-                ActionLabel = "Get Dragon",
-                ActionUrl = DragonUrl,
             }, true, false, dev, info.CarryContract);
 
         return new DragonInfo(new ComponentRow
@@ -217,8 +215,6 @@ public static class ComponentScanner
             State = ComponentState.Attention,
             StateText = $"{prefix} · no stock-carry",
             Detail = "This version links faster but can't use stock assets directly. Update it to carry them." + devNote,
-            ActionLabel = "Get Dragon",
-            ActionUrl = DragonUrl,
         }, true, false, dev);
     }
 
@@ -271,13 +267,14 @@ public static class ComponentScanner
     private static ComponentRow Ultrasound(string gamePath)
     {
         var converter = Path.Combine(gamePath, "sound", "snd_convert.exe");
-        if (File.Exists(converter) && ProductNameContains(converter, "Ultrasound"))
+        // Ultrasound takes over Treyarch's file name: it is Ultrasound by its version resource or its registry entry, never by the name.
+        if (File.Exists(converter) && ComponentUpdater.IsInstalled(ComponentSpecs.Ultrasound, converter, gamePath))
             return new ComponentRow
             {
                 Id = "ultrasound",
                 Name = "Ultrasound",
                 State = ComponentState.Ready,
-                StateText = ProductVersion(converter) is { } v ? $"{v} · installed" : "installed",
+                StateText = (ProductVersion(converter) ?? RegistryText(ComponentPaths.Entry(gamePath, "ultrasound"), "version")) is { } v ? $"{v} · installed" : "installed",
                 Detail = "Replaces the Mod Tools sound converter.",
             };
 

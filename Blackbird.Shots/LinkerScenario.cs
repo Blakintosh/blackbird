@@ -55,6 +55,16 @@ internal static class LinkerScenario
             Check($"linker: a Dragon reporting commit and build_date is named by them ('{FirstLine(release, "Dragon")}')",
                 release.Contains("^4Dragon 1.0.0 (bb-linker, 012345678, built 2026-10-13)\n", StringComparison.Ordinal));
 
+            // 1c. Blackbird manages Ultrasound's updates, so every process a build starts carries BO3MT_UPDATES_MANAGED_BY (the
+            // linker hands it on to snd_convert.exe, which then never starts its own updater). The Shots process itself has none.
+            var managed = Path.Combine(Path.GetDirectoryName(dragon)!, "managed-env.cmd");
+            File.WriteAllText(managed, "@echo off\r\necho managed-by=[%BO3MT_UPDATES_MANAGED_BY%]\r\nexit /b 0\r\n");
+            Check("linker: the test process has no BO3MT_UPDATES_MANAGED_BY of its own", string.IsNullOrEmpty(Environment.GetEnvironmentVariable(ManagedUpdates.Variable)));
+            var stockEnv = Real(new BuildCommand(managed, [], "Link"));
+            var dragonEnv = Real(new BuildCommand(managed, [], "Link (bb-linker)") { ReportsProgress = true, Environment = new Dictionary<string, string> { ["TA_GAME_PATH"] = "x" } });
+            Check($"linker: the stock linker's process has BO3MT_UPDATES_MANAGED_BY=blackbird ('{FirstLine(stockEnv, "managed-by")}')", stockEnv.Contains("managed-by=[blackbird]", StringComparison.Ordinal));
+            Check($"linker: Dragon's process has it too ('{FirstLine(dragonEnv, "managed-by")}')", dragonEnv.Contains("managed-by=[blackbird]", StringComparison.Ordinal));
+
             // 2. A developer's build named by BLACKBIRD_BB_LINKER says so, with its path.
             Environment.SetEnvironmentVariable(BbLinker.OverrideVariable, dragon);
             var dev = Real(Dragon(dragon, 0, stockLinker));

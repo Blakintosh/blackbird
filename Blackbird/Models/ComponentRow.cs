@@ -34,7 +34,7 @@ public sealed partial class ComponentRow : ObservableObject
     public string? ActionUrl { get; init; }
 
     /// <summary>A newer release of this component, when Blackbird found one (Dragon and the Stock Library). Set when the view opens and as a check finishes.</summary>
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUpdate))]
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUpdate), nameof(HasAction))]
     private ComponentUpdate? _update;
 
     public bool HasUpdate => Update is not null;
@@ -64,7 +64,9 @@ public sealed partial class ComponentRow : ObservableObject
     public bool IsReady => State == ComponentState.Ready;
     public bool NeedsAttention => State == ComponentState.Attention;
     public bool IsMissing => State == ComponentState.Missing;
-    public bool HasAction => ActionLabel is not null && ActionUrl is not null;
+
+    /// <summary>The "Get" link: only for something that isn't installed, and never beside an Update button.</summary>
+    public bool HasAction => ActionLabel is not null && ActionUrl is not null && !HasUpdate;
 }
 
 /// <summary>The Components view's content for one install.</summary>

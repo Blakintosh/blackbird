@@ -36,7 +36,8 @@ public sealed record ComponentSpec(
     IReadOnlyList<string> VerifyArgs,
     string VerifyField,
     IReadOnlyList<string> ProcessNames,
-    string? PluginProcess = null)
+    string? PluginProcess = null,
+    bool UsesGameFolder = false)
 {
     /// <summary>The plugin file, when this component has one (Radiant loads it).</summary>
     public ComponentFile? Plugin => Files.FirstOrDefault(f => f.RequiresFile is not null && !f.KeepExisting);
@@ -62,7 +63,18 @@ public static class ComponentSpecs
         VerifyArgs: ["update-check", "--json"], VerifyField: "current",
         ProcessNames: ["stocklib"], PluginProcess: "radiant_modtools");
 
-    public static readonly IReadOnlyList<ComponentSpec> All = [Dragon, StockLibrary];
+    /// <summary>
+    /// Ultrasound replaces the Mod Tools' <c>sound\snd_convert.exe</c>, so it lives in the game folder, not the tools' bin. It is only
+    /// Ultrasound when the exe says so (<see cref="ComponentUpdater.IsInstalled"/>): Treyarch's own snd_convert is never touched.
+    /// </summary>
+    public static readonly ComponentSpec Ultrasound = new(
+        "ultrasound", "Ultrasound", "Blakintosh/ultrasound", "sound/snd_convert.exe",
+        [new("sound/snd_convert.exe"), new("sound/libFLAC.dll")],
+        CheckArgs: ["--check-update", "--json"],
+        VerifyArgs: ["--capabilities"], VerifyField: "version",
+        ProcessNames: ["snd_convert"], UsesGameFolder: true);
+
+    public static readonly IReadOnlyList<ComponentSpec> All = [Dragon, StockLibrary, Ultrasound];
 }
 
 /// <summary>What a component's CLI printed.</summary>
@@ -154,7 +166,7 @@ public sealed class ComponentUpdaterOptions
 }
 
 /// <summary>
-/// Keeps Dragon and the Stock Library up to date from inside Blackbird: a quiet daily check through each component's own
+/// Keeps Dragon, the Stock Library and Ultrasound up to date from inside Blackbird: a quiet daily check through each component's own
 /// CLI (or straight against the release feed when the CLI is older than that contract), a quiet digest-verified download,
 /// and one combined notification in the title bar with Install / Later. Installing swaps the files in with the
 /// <c>.old</c> trick (a running exe can be renamed), checks the new exe runs and reports the version, and puts the old
@@ -293,7 +305,7 @@ public sealed partial class ComponentUpdater : ObservableObject
         }
 
         SetPhase(ComponentPhase.Checking);
-        StatusText = userAsked ? "Checking for Dragon and Stock Library updates…" : "";
+        StatusText = userAsked ? "Checking for component updates…" : "";
         Changed();
 
         // Never while a build or link runs: the CLI would compete with it for the disk.
@@ -326,14 +338,14 @@ public sealed partial class ComponentUpdater : ObservableObject
 
     private (List<ComponentUpdate> Updates, string Summary) CheckAll(string root, string game, bool userAsked)
     {
-        CleanLeftovers(root);
+        CleanLeftovers(root, game);
         var updates = new List<ComponentUpdate>();
         var installed = new List<string>();
         var failed = new List<string>();
         foreach (var spec in ComponentSpecs.All)
         {
-            var exe = Path.GetFullPath(Path.Combine(root, spec.ExePath));
-            if (!File.Exists(exe))
+            var exe = Path.GetFullPath(Path.Combine(RootOf(spec, root, game), spec.ExePath));
+            if (!File.Exists(exe) || !IsInstalled(spec, exe, game))
                 continue;
             installed.Add(spec.DisplayName);
             try
@@ -348,12 +360,44 @@ public sealed partial class ComponentUpdater : ObservableObject
             }
         }
 
-        var summary = installed.Count == 0 ? "Dragon and Stock Library aren't installed."
+        var summary = installed.Count == 0 ? "No updatable components are installed."
             : updates.Count > 0 ? $"{Join(updates.Select(u => u.Title))} {(updates.Count == 1 ? "is" : "are")} available."
             : failed.Count == installed.Count ? $"Couldn't check for {Join(failed)} updates. Try again in a while."
             : failed.Count > 0 ? $"{Join(installed.Except(failed))} {(installed.Count - failed.Count == 1 ? "is" : "are")} up to date. Couldn't check {Join(failed)}."
             : $"{Join(installed)} {(installed.Count == 1 ? "is" : "are")} up to date.";
         return (updates, summary);
+    }
+
+    /// <summary>The folder a component's files are relative to: the tools' folder, or the game folder for Ultrasound.</summary>
+    private static string RootOf(ComponentSpec spec, string root, string game) => spec.UsesGameFolder && game.Length > 0 ? game : root;
+
+    /// <summary>
+    /// Whether the exe at <paramref name="exe"/> is this component. Dragon's and the Stock Library's paths are their own; Ultrasound
+    /// takes over Treyarch's <c>snd_convert.exe</c>, so it counts only when its version resource names Ultrasound, or its
+    /// <c>ultrasound.json</c> in the components registry names this exe and the exe isn't marked as Treyarch's or Activision's.
+    /// </summary>
+    public static bool IsInstalled(ComponentSpec spec, string exe, string game)
+    {
+        if (spec.Id != ComponentSpecs.Ultrasound.Id)
+            return true;
+        try
+        {
+            var info = FileVersionInfo.GetVersionInfo(exe);
+            if (info.ProductName?.Contains(spec.DisplayName, StringComparison.OrdinalIgnoreCase) == true)
+                return true;
+            if (new[] { info.ProductName, info.CompanyName, info.LegalCopyright }
+                .Any(t => t is not null && (t.Contains("Treyarch", StringComparison.OrdinalIgnoreCase) || t.Contains("Activision", StringComparison.OrdinalIgnoreCase))))
+                return false;
+            var entry = ComponentPaths.Entry(game, spec.Id);
+            return File.Exists(entry)
+                && System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(entry)) is System.Text.Json.Nodes.JsonObject registered
+                && registered["path"] is System.Text.Json.Nodes.JsonValue p && p.TryGetValue<string>(out var path)
+                && string.Equals(Path.GetFullPath(path), exe, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return false;
+        }
     }
 
     private ComponentUpdate? CheckOne(ComponentSpec spec, string exe, string root, string game)
@@ -753,8 +797,18 @@ public sealed partial class ComponentUpdater : ObservableObject
     private Task<string?> BlockerAsync(IReadOnlyList<ComponentUpdate> targets)
     {
         var root = Root();
+        var game = _options.GamePath();
         var specs = targets.Select(t => t.Spec).ToList();
-        return Task.Run(() => BusyReason() is { } busy ? $"{Capitalize(busy)}. It installs when that finishes." : _options.InUseReason(root, specs));
+        return Task.Run(() =>
+        {
+            if (BusyReason() is { } busy)
+                return $"{Capitalize(busy)}. It installs when that finishes.";
+            // Each component is looked for under its own folder (Ultrasound's is the game folder).
+            foreach (var group in specs.GroupBy(s => RootOf(s, root, game)))
+                if (_options.InUseReason(group.Key, group.ToList()) is { } reason)
+                    return reason;
+            return null;
+        });
     }
 
     /// <summary>
@@ -808,7 +862,7 @@ public sealed partial class ComponentUpdater : ObservableObject
         {
             item.State = ComponentItemState.Installing;
             Changed(nameof(Progress));
-            var error = await Task.Run(() => Install(item, root, game));
+            var error = await Task.Run(() => Install(item, RootOf(item.Spec, root, game), game));
             if (error is null)
             {
                 item.State = ComponentItemState.Installed;
@@ -930,10 +984,10 @@ public sealed partial class ComponentUpdater : ObservableObject
             var rolledBack = RollBack(placed, BackupOf);
             if (rolledBack)
                 TryDeleteFolder(backups);
-            Log($"{item.Title} didn't verify after install: {problem}{(rolledBack ? "; the old files were put back" : "; some files couldn't be put back")}");
+            Log($"{item.Title} didn't verify after install: the new {spec.DisplayName} {problem}{(rolledBack ? "; the old files were put back" : "; some files couldn't be put back")}");
             return rolledBack
-                ? $"The new {spec.DisplayName} didn't run ({problem}). The old version was put back."
-                : $"The new {spec.DisplayName} didn't run, and some files couldn't be put back. Reinstall it from its release page.";
+                ? $"The new {spec.DisplayName} {problem}. The old version was put back."
+                : $"The new {spec.DisplayName} {problem}, and some files couldn't be put back. Reinstall it from its release page.";
         }
 
         foreach (var (target, _, hadOld, _) in placed.Where(p => p.HadOld))
@@ -947,10 +1001,10 @@ public sealed partial class ComponentUpdater : ObservableObject
     {
         var result = await _options.Run(exe, item.Spec.VerifyArgs, WithFeed(BbLinker.InstallEnvironment(game, root), item.Spec));
         if (!result.Started)
-            return "it doesn't start";
+            return "didn't start";
         var said = ReadField(result.Output, item.Spec.VerifyField);
         if (said is not null && Updater.CompareVersions(said, item.Latest) != 0)
-            return $"it reports {said}, not {item.Latest}";
+            return $"reports {said}, not {item.Latest}";
         if (said is null)
             Log($"{item.Title}: ran after install but reported no version ({item.Spec.VerifyField}).");
         return null;
@@ -1002,12 +1056,12 @@ public sealed partial class ComponentUpdater : ObservableObject
     }
 
     /// <summary>Removes the <c>.old</c> and <c>.new</c> files an earlier install left beside the components' files.</summary>
-    private static void CleanLeftovers(string root)
+    private static void CleanLeftovers(string root, string game)
     {
         foreach (var spec in ComponentSpecs.All)
             foreach (var file in spec.Files)
             {
-                var target = Path.Combine(root, Normalize(file.Path));
+                var target = Path.Combine(RootOf(spec, root, game), Normalize(file.Path));
                 TryDelete(target + ".old");
                 TryDelete(target + ".new");
             }
@@ -1180,9 +1234,12 @@ public sealed partial class ComponentUpdater : ObservableObject
         {
             foreach (var name in spec.ProcessNames)
                 if (RunningFrom(name, root))
-                    return spec.Id == "dragon"
-                        ? "Dragon is linking right now. It installs when the link finishes."
-                        : "Apex or Radiant has the Stock Library open. Close them to update it, or wait here.";
+                    return spec.Id switch
+                    {
+                        "dragon" => "Dragon is linking right now. It installs when the link finishes.",
+                        "ultrasound" => "Ultrasound is converting sounds right now. It installs when that finishes.",
+                        _ => "Apex or Radiant has the Stock Library open. Close them to update it, or wait here.",
+                    };
             if (spec.PluginProcess is { } radiant && spec.Plugin is { } plugin && File.Exists(Path.Combine(root, Normalize(plugin.RequiresFile!))) && RunningFrom(radiant, root))
                 return "Radiant has the Stock Library plugin open. Close it to update, or wait here.";
         }

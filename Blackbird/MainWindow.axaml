@@ -100,8 +100,8 @@
                                   Click="OnCheckNowClick"
                                   IsVisible="{Binding Updates.ShowsCheckNow}"/>
                         <Separator/>
-                        <!-- Dragon and the Stock Library are closed-source parts Blackbird keeps current when they are installed. -->
-                        <MenuItem Name="ComponentUpdatesItem" Header="Update _Dragon and Stock Library" ToggleType="CheckBox"
+                        <!-- Dragon, the Stock Library and Ultrasound are parts Blackbird keeps current when they are installed. -->
+                        <MenuItem Name="ComponentUpdatesItem" Header="Update _Dragon, Stock Library and Ultrasound" ToggleType="CheckBox"
                                   IsChecked="{Binding CheckComponentUpdates, Mode=TwoWay}" StaysOpenOnClick="True"/>
                     </MenuItem>
                     <Separator/>

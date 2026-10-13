@@ -20,9 +20,12 @@ namespace Blackbird.Shots;
 /// for a build and for Apex or Radiant, the .old swap, and every rollback (a new exe that won't run, a locked file, a bad
 /// checksum). The CLIs are stand-ins that answer by reading the exe's text, so a "new exe" is just different text.
 /// </summary>
-internal static class ComponentUpdateScenario
+internal static partial class ComponentUpdateScenario
 {
-    private static string Bo3 => Path.Combine(FakeInstall.Root, "components-update", "Call of Duty Black Ops III");
+    private static string? _bo3Override;
+    private static string? _toolsOverride;
+    private static string? _inUseRoot;
+    private static string Bo3 => _bo3Override ?? Path.Combine(FakeInstall.Root, "components-update", "Call of Duty Black Ops III");
     private static string Feeds => Path.Combine(FakeInstall.Root, "components-update", "feeds");
     private static string DragonExe => Path.Combine(Bo3, "bin", "bb-linker", "bb-linker.exe");
     private static string StockExe => Path.Combine(Bo3, "bin", "stocklib", "stocklib.exe");
@@ -40,9 +43,13 @@ internal static class ComponentUpdateScenario
     public static ComponentUpdater CreateUpdater() => new(new ComponentUpdaterOptions
     {
         GamePath = () => Bo3,
-        ToolsPath = () => Bo3,
+        ToolsPath = () => _toolsOverride ?? Bo3,
         Enabled = () => App.Services.GetRequiredService<ISettingsService>().CheckComponentUpdates,
-        InUseReason = (_, _) => _inUse,
+        InUseReason = (root, _) =>
+        {
+            _inUseRoot = root;
+            return _inUse;
+        },
         Run = FakeRun,
         LogFile = Path.Combine(FakeInstall.DataPath, "updates.log"),
         PollInterval = TimeSpan.FromMilliseconds(60),
@@ -202,7 +209,7 @@ internal static class ComponentUpdateScenario
             WaitFor(() => updates.Phase == ComponentPhase.Failed, 8000);
             Pump(80);
             Check($"components update: a new Dragon that doesn't run is rolled back ('{PanelTitle(main)}', '{updates.Detail}')",
-                PanelTitle(main) == "Couldn't update Dragon" && updates.Detail == "The new Dragon didn't run (it doesn't start). The old version was put back."
+                PanelTitle(main) == "Couldn't update Dragon" && updates.Detail == "The new Dragon didn't start. The old version was put back."
                 && File.ReadAllText(DragonExe) == "DRAGON:1.0.1" && !File.Exists(DragonExe + ".old") && !File.Exists(DragonExe + ".new") && installs == 2);
             Check($"components update: the failure offers Try again and Later ({string.Join(", ", PanelButtons(main))})", PanelButtons(main).SequenceEqual(["Later", "Try again"]));
             Shot(main, "components-update-failed");
@@ -338,6 +345,8 @@ internal static class ComponentUpdateScenario
         var text = File.Exists(exe) ? File.ReadAllText(exe) : "";
         if (text.StartsWith("BAD", StringComparison.Ordinal) || text.Length == 0)
             return Task.FromResult(new CliResult(false, -1, ""));
+        if (text.StartsWith("ULTRASOUND:", StringComparison.Ordinal))
+            return Task.FromResult(UltrasoundRun(args, text));
         var version = text.Split(':')[1];
         // The contract's answer: it always exits 0, and trouble (error, latest null) is part of the JSON.
         string Json(Answer? say)
@@ -402,7 +411,7 @@ internal static class ComponentUpdateScenario
             }
         }
 
-        var repo = id == "dragon" ? "Blakintosh/dragon" : "Blakintosh/stock-library";
+        var repo = id switch { "dragon" => "Blakintosh/dragon", "ultrasound" => "Blakintosh/ultrasound", _ => "Blakintosh/stock-library" };
         File.WriteAllText(Path.Combine(folder, "latest.json"), JsonSerializer.Serialize(new
         {
             tag_name = "v" + version,
