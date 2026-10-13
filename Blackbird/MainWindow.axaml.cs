@@ -64,6 +64,9 @@ public partial class MainWindow : Window
         if (this.FindControl<ColoredLogView>("BuildLogView") is { } logView)
             logView.ActionRequested += OnLogViewAction;
 
+        // Dragon may have been installed (or removed) while Blackbird was in the background.
+        Activated += (_, _) => ViewModel?.RefreshBbLinker();
+
         if (this.FindControl<Button>("UpdateButton") is { } updateButton)
             updateButton.PropertyChanged += (_, e) =>
             {

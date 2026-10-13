@@ -1880,6 +1880,17 @@ public partial class MainWindowViewModel : ObservableObject
     /// </summary>
     public bool IsBbLinkerInstalled => BbLinker.Locate(_fileSystem.ToolsPath) is not null;
 
+    /// <summary>
+    /// Looks for bb-linker again (one file check), so Tools > Link with bb-linker enables without a restart once Dragon is
+    /// installed. Called when the window regains focus and before each build.
+    /// </summary>
+    public void RefreshBbLinker()
+    {
+        OnPropertyChanged(nameof(IsBbLinkerInstalled));
+        OnPropertyChanged(nameof(IsLinkingWithBbLinker));
+        OnPropertyChanged(nameof(LinkWithBbLinkerToolTip));
+    }
+
     /// <summary>The menu's check: on only when bb-linker is there and the setting is on, so a missing linker never reads as "on".</summary>
     public bool IsLinkingWithBbLinker
     {
