@@ -143,7 +143,7 @@ public static class BbLinker
         if (devBuild)
             details.Add($"dev build: {exe}");
         if (info?.Commit is { Length: > 0 } commit)
-            details.Add(commit);
+            details.Add(commit.Length > 12 ? commit[..9] : commit);
         if (info?.Built is { Length: > 0 } built)
             details.Add($"built {built}");
         else if (written is { } stamp)
@@ -217,9 +217,10 @@ public static class BbLinker
                         capabilities.Add(name);
             string? Text(string name) =>
                 root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-            // "commit" and "built" are read when a linker reports them; 0.1.0 reports neither.
+            // "commit" and "build_date" (or "built") are read when a linker reports them (Dragon 1.0.0); 0.1.0 reports
+            // neither, and the header falls back to the exe's date.
             int? contract = root.TryGetProperty("carry_contract", out var c) && c.ValueKind == JsonValueKind.Number && c.TryGetInt32(out var n) ? n : null;
-            return new Info(Text("version"), capabilities, Text("commit"), Text("built"), contract);
+            return new Info(Text("version"), capabilities, Text("commit"), Text("build_date") ?? Text("built"), contract);
         }
         catch (JsonException)
         {
